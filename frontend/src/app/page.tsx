@@ -20,8 +20,8 @@ const DegreeProposal = () => {
   const [showCourseDropdown, setShowCourseDropdown] = useState(false);
   const [loadingCourses, setLoadingCourses] = useState(false);
   const [courseTitles, setCourseTitles] = useState({});
-  const searchTimeout = useRef(null);
-  const dropdownRef = useRef(null);
+  const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Reset the proposal when the page loads
   useEffect(() => {
@@ -290,9 +290,9 @@ const DegreeProposal = () => {
     const [results, setResults] = useState([]);
     const [isOpen, setIsOpen] = useState(false);
     const [loading, setLoading] = useState(false);
-    const dropdownRef = useRef(null);
-    const inputRef = useRef(null);
-    const searchTimeout = useRef(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+    const searchTimeout = useRef<NodeJS.Timeout | null>(null);
   
     // Search for courses when input changes
     const handleSearch = useCallback(async (query) => {
@@ -330,8 +330,12 @@ const DegreeProposal = () => {
     // Close dropdown when clicking outside
     useEffect(() => {
       const handleClickOutside = (event: MouseEvent): void => {
-        if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node) && 
-            inputRef.current && !inputRef.current.contains(event.target as Node)) {
+        if (
+          dropdownRef.current && 
+          !dropdownRef.current.contains(event.target as Node) && 
+          inputRef.current && 
+          !inputRef.current.contains(event.target as Node)
+        ) {
           setIsOpen(false);
         }
       };
