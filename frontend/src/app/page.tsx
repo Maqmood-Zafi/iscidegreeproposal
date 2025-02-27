@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,8 +39,8 @@ const DegreeProposal = () => {
         } else {
           console.error('Failed to reset proposal');
         }
-      } catch (error) {
-        console.error('Error resetting proposal:', error);
+      } catch (_) {
+        console.error('Error resetting proposal');
       }
     };
 
@@ -94,7 +94,7 @@ const DegreeProposal = () => {
           setValidationResults(data.validation);
         }
       }
-    } catch (err) {
+    } catch (_) {
       setError('Failed to add discipline');
     }
   };
@@ -126,27 +126,12 @@ const DegreeProposal = () => {
     }
   };
 
-  const fetchCourseDetails = async (courseCode) => {
-    try {
-      const response = await fetch(`http://localhost:5000/courses/${courseCode}`);
-      const data = await response.json();
-      if (data.success) {
-        setCourseTitles(prev => ({
-          ...prev,
-          [courseCode]: data.course.name
-        }));
-      }
-    } catch (err) {
-      console.error('Failed to fetch course details:', err);
-    }
-  };
-
-  const addCourse = async (courseCode) => {
-    if (!selectedDiscipline || !courseCode.trim()) {
-      setError('Please select a discipline and enter a course code');
+  const addCourse = async (disciplineName, courseCode) => {
+    if (!disciplineName || !courseCode.trim()) {
+      setError('Please enter a course code');
       return;
     }
-
+  
     try {
       const response = await fetch('http://localhost:5000/courses', {
         method: 'POST',
@@ -154,37 +139,32 @@ const DegreeProposal = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          discipline_name: selectedDiscipline,
+          discipline_name: disciplineName,
           course_code: courseCode,
         }),
       });
       const data = await response.json();
-      
       if (data.success) {
-        setDisciplines({
-          ...disciplines,
-          [selectedDiscipline]: [...disciplines[selectedDiscipline], courseCode],
-        });
+        setDisciplines(prev => ({
+          ...prev,
+          [disciplineName]: [...prev[disciplineName], courseCode],
+        }));
         setCourseTitles(prev => ({
           ...prev,
           [courseCode]: data.course.title
         }));
-        setNewCourse('');
-        setShowCourseDropdown(false);
-        setCourseSearchResults([]);
         setError('');
         
         if (data.validation) {
           setValidationResults(data.validation);
         }
       } else {
-        // Display the error message from the backend
         setError(data.message || 'Course not found or already added');
       }
-    } catch (err) {
+    } catch (_) {
       setError('Failed to add course');
     }
-};
+  };
 
   const removeCourse = async (disciplineName, courseCode) => {
     try {
@@ -213,7 +193,7 @@ const DegreeProposal = () => {
           setValidationResults(data.validation);
         }
       }
-    } catch (err) {
+    } catch (_) {
       setError('Failed to remove course');
     }
   };
@@ -304,6 +284,127 @@ const DegreeProposal = () => {
     return false;
   };
 
+  // Create a CourseDropdown component
+  const CourseDropdown = ({ discipline, onCourseSelect }) => {
+    const [searchInput, setSearchInput] = useState('');
+    const [results, setResults] = useState([]);
+    const [isOpen, setIsOpen] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const dropdownRef = useRef(null);
+    const inputRef = useRef(null);
+    const searchTimeout = useRef(null);
+  
+    // Search for courses when input changes
+    const handleSearch = useCallback(async (query) => {
+      if (!query || query.length < 2) {
+        setResults([]);
+        return;
+      }
+  
+      setLoading(true);
+      try {
+        const response = await fetch(`http://localhost:5000/search-courses?query=${query}`);
+        const data = await response.json();
+        setResults(data);
+      } catch (err) {
+        console.error('Search failed:', err);
+      } finally {
+        setLoading(false);
+      }
+    }, []);
+  
+    // Handle input changes
+    const handleInputChange = (e) => {
+      const value = e.target.value;
+      setSearchInput(value);
+      
+      if (searchTimeout.current) {
+        clearTimeout(searchTimeout.current);
+      }
+      
+      searchTimeout.current = setTimeout(() => {
+        handleSearch(value);
+      }, 300);
+    };
+  
+    // Close dropdown when clicking outside
+    useEffect(() => {
+      const handleClickOutside = (event) => {
+        if (dropdownRef.current && !dropdownRef.current.contains(event.target) && 
+            inputRef.current && !inputRef.current.contains(event.target)) {
+          setIsOpen(false);
+        }
+      };
+  
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }, []);
+  
+    return (
+      <div className="relative w-full">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-1 relative" ref={dropdownRef}>
+            <Input
+              ref={inputRef}
+              value={searchInput}
+              onChange={handleInputChange}
+              onFocus={() => setIsOpen(true)}
+              placeholder={`Search for courses...`}
+              className="flex-1"
+            />
+            
+            {isOpen && (
+              <div 
+                className="absolute z-50 w-full bg-white shadow-lg rounded-md mt-1 max-h-60 overflow-auto border border-gray-200"
+              >
+                {loading ? (
+                  <div className="p-3 text-center text-gray-500">Loading...</div>
+                ) : results.length > 0 ? (
+                  results.map((course) => (
+                    <div
+                      key={course.code}
+                      className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 flex justify-between items-center"
+                      onMouseDown={(e) => {
+                        e.preventDefault(); // Important: Prevent focus loss
+                        onCourseSelect(course.code);
+                        setIsOpen(false);
+                        setSearchInput('');
+                      }}
+                    >
+                      <div>
+                        <div className="font-medium">{course.code}</div>
+                        <div className="text-sm text-gray-500">{course.name}</div>
+                      </div>
+                      <Plus className="w-4 h-4 text-gray-400" />
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-3 text-center text-gray-500">
+                    {searchInput.length >= 2 ? 'No courses found' : 'Type at least 2 characters'}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <Button 
+            onClick={() => {
+              if (searchInput) {
+                onCourseSelect(searchInput);
+                setSearchInput('');
+              }
+            }} 
+            className="whitespace-nowrap"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col lg:flex-row gap-6 p-6 max-w-7xl mx-auto">
       {/* Main content area */}
@@ -345,7 +446,8 @@ const DegreeProposal = () => {
                       {validationResults && validationResults.requirements.disciplines_requirements[discipline] && (
                         <>
                           <Badge variant={validationResults.requirements.disciplines_requirements[discipline].course_count.met ? "success" : "destructive"} className="ml-2">
-                            {courses.length}/{validationResults.requirements.disciplines_requirements[discipline].course_count.required} courses
+                            {validationResults.requirements.disciplines_requirements[discipline].course_count.actual}/
+                            {validationResults.requirements.disciplines_requirements[discipline].course_count.required} credits
                           </Badge>
                           
                           {discipline !== 'ISCI' && (
@@ -368,51 +470,12 @@ const DegreeProposal = () => {
                     )}
                   </div>
 
+                  {/* Update the course dropdown section */}
                   <div className="relative mb-4">
-                    <div className="flex flex-col sm:flex-row gap-4">
-                      <div className="flex-1 relative" ref={dropdownRef}>
-                        <Input
-                          value={selectedDiscipline === discipline ? newCourse : ''}
-                          onChange={handleCourseInputChange}
-                          onFocus={() => {
-                            setSelectedDiscipline(discipline);
-                            handleCourseInputFocus();
-                          }}
-                          onClick={() => setSelectedDiscipline(discipline)}
-                          placeholder="Search for courses..."
-                          className="flex-1"
-                        />
-                        
-                        {/* Course dropdown */}
-                        {selectedDiscipline === discipline && showCourseDropdown && (
-                          <div className="absolute z-10 w-full bg-white shadow-lg rounded-md mt-1 max-h-60 overflow-auto">
-                            {loadingCourses ? (
-                              <div className="p-3 text-center text-gray-500">Loading...</div>
-                            ) : courseSearchResults.length > 0 ? (
-                              courseSearchResults.map((course) => (
-                                <div
-                                  key={course.code}
-                                  className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 flex justify-between items-center"
-                                  onClick={() => addCourse(course.code)}
-                                >
-                                  <div>
-                                    <div className="font-medium">{course.code}</div>
-                                    <div className="text-sm text-gray-500">{course.name}</div>
-                                  </div>
-                                  <Plus className="w-4 h-4 text-gray-400" />
-                                </div>
-                              ))
-                            ) : (
-                              <div className="p-3 text-center text-gray-500">No courses found</div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <Button onClick={() => addCourse(newCourse)} className="whitespace-nowrap">
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add
-                      </Button>
-                    </div>
+                    <CourseDropdown 
+                      discipline={discipline} 
+                      onCourseSelect={(courseCode) => addCourse(discipline, courseCode)} // Now passes both parameters
+                    />
                   </div>
 
                   <div className="flex flex-col gap-2">
