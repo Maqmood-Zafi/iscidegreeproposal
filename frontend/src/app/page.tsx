@@ -27,7 +27,7 @@ const DegreeProposal = () => {
   useEffect(() => {
     const resetProposal = async () => {
       try {
-        const response = await fetch('http://localhost:5000/reset', {
+        const response = await fetch('https://iscidegreeproposal.onrender.com/reset', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -62,7 +62,7 @@ const DegreeProposal = () => {
 
   const fetchValidation = async () => {
     try {
-      const response = await fetch('http://localhost:5000/validate');
+      const response = await fetch('https://iscidegreeproposal.onrender.com/validate');
       const data = await response.json();
       setValidationResults(data);
     } catch (err) {
@@ -77,7 +77,7 @@ const DegreeProposal = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:5000/disciplines', {
+      const response = await fetch('https://iscidegreeproposal.onrender.com/disciplines', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -106,7 +106,7 @@ const DegreeProposal = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:5000/disciplines/${disciplineName}`, {
+      const response = await fetch(`https://iscidegreeproposal.onrender.com/${disciplineName}`, {
         method: 'DELETE',
       });
       const data = await response.json();
@@ -133,7 +133,7 @@ const DegreeProposal = () => {
     }
   
     try {
-      const response = await fetch('http://localhost:5000/courses', {
+      const response = await fetch('https://iscidegreeproposal.onrender.com/courses', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -168,7 +168,7 @@ const DegreeProposal = () => {
 
   const removeCourse = async (disciplineName, courseCode) => {
     try {
-      const response = await fetch('http://localhost:5000/courses', {
+      const response = await fetch('https://iscidegreeproposal.onrender.com/courses', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -214,7 +214,7 @@ const DegreeProposal = () => {
     searchTimeout.current = setTimeout(async () => {
       setLoadingCourses(true);
       try {
-        const response = await fetch(`http://localhost:5000/search-courses?query=${encodeURIComponent(query)}`);
+        const response = await fetch(`https://iscidegreeproposal.onrender.com/search-courses?query=${encodeURIComponent(query)}`);
         const data = await response.json();
         setCourseSearchResults(data);
         setShowCourseDropdown(data.length > 0);
@@ -303,7 +303,7 @@ const DegreeProposal = () => {
   
       setLoading(true);
       try {
-        const response = await fetch(`http://localhost:5000/search-courses?query=${query}`);
+        const response = await fetch(`https://iscidegreeproposal.onrender.com/search-courses?query=${query}`);
         const data = await response.json();
         setResults(data);
       } catch (err) {
