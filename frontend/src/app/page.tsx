@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, MouseEvent } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,15 +48,15 @@ const DegreeProposal = () => {
     resetProposal();
     
     // Add click outside listener for dropdown
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+    const handleClickOutside = (event: MouseEvent): void => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowCourseDropdown(false);
       }
     };
     
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside as EventListener);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside as EventListener);
     };
   }, []); 
 
@@ -228,7 +228,7 @@ const DegreeProposal = () => {
     }, 300);
   };
   
-  const handleCourseInputChange = (e) => {
+  const handleCourseInputChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     const value = e.target.value;
     setNewCourse(value);
     searchCourses(value);
@@ -314,7 +314,7 @@ const DegreeProposal = () => {
     }, []);
   
     // Handle input changes
-    const handleInputChange = (e) => {
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
       const value = e.target.value;
       setSearchInput(value);
       
@@ -329,16 +329,16 @@ const DegreeProposal = () => {
   
     // Close dropdown when clicking outside
     useEffect(() => {
-      const handleClickOutside = (event) => {
-        if (dropdownRef.current && !dropdownRef.current.contains(event.target) && 
-            inputRef.current && !inputRef.current.contains(event.target)) {
+      const handleClickOutside = (event: MouseEvent): void => {
+        if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node) && 
+            inputRef.current && !inputRef.current.contains(event.target as Node)) {
           setIsOpen(false);
         }
       };
   
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('mousedown', handleClickOutside as EventListener);
       return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('mousedown', handleClickOutside as EventListener);
       };
     }, []);
   
