@@ -106,7 +106,7 @@ const DegreeProposal = () => {
     }
 
     try {
-      const response = await fetch(`https://iscidegreeproposal.onrender.com/${disciplineName}`, {
+      const response = await fetch(`https://iscidegreeproposal.onrender.com/disciplines/${disciplineName}`, {
         method: 'DELETE',
       });
       const data = await response.json();
