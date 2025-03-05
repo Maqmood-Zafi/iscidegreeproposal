@@ -548,6 +548,18 @@ def search_courses():
             'session_id': session_id if 'session_id' in locals() else None
         })
 
+@app.route('/proposal-state', methods=['GET'])
+def get_proposal_state():
+    # Get session_id from query parameter
+    session_id = request.args.get('session')
+    session_id, proposal = get_user_proposal(session_id)
+    
+    # Return the complete proposal state
+    return jsonify({
+        'disciplines': proposal.disciplines,
+        'session_id': session_id
+    })
+
 if __name__ == '__main__':
     app.run(debug=True)
 

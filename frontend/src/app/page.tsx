@@ -78,11 +78,22 @@ const DegreeProposal = () => {
           // Only reset if there's no session ID (new user)
           const data = await makeApiCall('/reset', 'POST');
           if (data.success) {
-            // First-time initialization
             fetchValidation();
           }
         } else {
-          // Just fetch validation for existing session
+          // Fetch the complete state for existing session
+          const stateData = await makeApiCall('/proposal-state', 'GET');
+          if (stateData.disciplines) {
+            setDisciplines(stateData.disciplines);
+            
+            // Fetch course titles for all existing courses
+            const allCourses = Object.values(stateData.disciplines).flat();
+            if (allCourses.length > 0) {
+              await fetchCourseTitles(allCourses);
+            }
+          }
+          
+          // Also fetch validation data
           fetchValidation();
         }
       } catch (error) {
@@ -104,6 +115,35 @@ const DegreeProposal = () => {
       document.removeEventListener('mousedown', handleClickOutside as EventListener);
     };
   }, [sessionId]); // Add sessionId as dependency
+
+  // Add this helper function
+  const fetchCourseTitles = async (courseCodes) => {
+    // Create a series of promises to fetch course data in parallel
+    const promises = courseCodes.map(async (code) => {
+      try {
+        // Search for the specific course to get its title
+        const data = await makeApiCall(`/search-courses?query=${encodeURIComponent(code)}`, 'GET');
+        const course = data.results?.find(c => c.code === code);
+        if (course) {
+          return { code, title: course.name };
+        }
+      } catch (err) {
+        console.error(`Failed to fetch course title for ${code}:`, err);
+      }
+      return null;
+    });
+  
+    // Wait for all promises to resolve
+    const results = await Promise.all(promises);
+    
+    // Update course titles
+    const newTitles = {};
+    results.filter(Boolean).forEach(item => {
+      if (item) newTitles[item.code] = item.title;
+    });
+    
+    setCourseTitles(prev => ({ ...prev, ...newTitles }));
+  };
 
   // Update all API functions to use makeApiCall
   const fetchValidation = async () => {
@@ -310,8 +350,8 @@ const DegreeProposal = () => {
     return false;
   };
 
-  // Create a CourseDropdown component
-  const CourseDropdown = ({ discipline, onCourseSelect }) => {
+  // Fix the CourseDropdown component
+  const CourseDropdown = ({ discipline, onCourseSelect, makeApiCall }) => {
     const [searchInput, setSearchInput] = useState('');
     const [results, setResults] = useState([]);
     const [isOpen, setIsOpen] = useState(false);
@@ -319,121 +359,29 @@ const DegreeProposal = () => {
     const dropdownRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const searchTimeout = useRef<NodeJS.Timeout | null>(null);
-
-    // Search for courses when input changes
+  
+    // Use the parent's makeApiCall function
     const handleSearch = useCallback(async (query) => {
       if (!query || query.length < 2) {
         setResults([]);
         return;
       }
-
+  
       setLoading(true);
       try {
-        const response = await fetch(`https://iscidegreeproposal.onrender.com/search-courses?query=${query}`);
-        const data = await response.json();
-        setResults(data);
+        // Use parent's makeApiCall function instead of direct fetch
+        const data = await makeApiCall(`/search-courses?query=${encodeURIComponent(query)}`, 'GET');
+        setResults(data.results || []); // Access the results property
       } catch (err) {
         console.error('Search failed:', err);
+        setResults([]);
       } finally {
         setLoading(false);
       }
     }, []);
-
-    // Handle input changes
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
-      const value = e.target.value;
-      setSearchInput(value);
-
-      if (searchTimeout.current) {
-        clearTimeout(searchTimeout.current);
-      }
-
-      searchTimeout.current = setTimeout(() => {
-        handleSearch(value);
-      }, 300);
-    };
-
-    // Close dropdown when clicking outside
-    useEffect(() => {
-      const handleClickOutside = (event: MouseEvent): void => {
-        if (
-          dropdownRef.current &&
-          !dropdownRef.current.contains(event.target as Node) &&
-          inputRef.current &&
-          !inputRef.current.contains(event.target as Node)
-        ) {
-          setIsOpen(false);
-        }
-      };
-
-      document.addEventListener('mousedown', handleClickOutside as EventListener);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside as EventListener);
-      };
-    }, []);
-
-    return (
-      <div className="relative w-full">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1 relative" ref={dropdownRef}>
-            <Input
-              ref={inputRef}
-              value={searchInput}
-              onChange={handleInputChange}
-              onFocus={() => setIsOpen(true)}
-              placeholder={`Search for courses...`}
-              className="flex-1"
-            />
-
-            {isOpen && (
-              <div
-                className="absolute z-50 w-full bg-white shadow-lg rounded-md mt-1 max-h-60 overflow-auto border border-gray-200"
-              >
-                {loading ? (
-                  <div className="p-3 text-center text-gray-500">Loading...</div>
-                ) : results.length > 0 ? (
-                  results.map((course) => (
-                    <div
-                      key={course.code}
-                      className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 flex justify-between items-center"
-                      onMouseDown={(e) => {
-                        e.preventDefault(); // Important: Prevent focus loss
-                        onCourseSelect(course.code);
-                        setIsOpen(false);
-                        setSearchInput('');
-                      }}
-                    >
-                      <div>
-                        <div className="font-medium">{course.code}</div>
-                        <div className="text-sm text-gray-500">{course.name}</div>
-                      </div>
-                      <Plus className="w-4 h-4 text-gray-400" />
-                    </div>
-                  ))
-                ) : (
-                  <div className="p-3 text-center text-gray-500">
-                    {searchInput.length >= 2 ? 'No courses found' : 'Type at least 2 characters'}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          <Button
-            onClick={() => {
-              if (searchInput) {
-                onCourseSelect(searchInput);
-                setSearchInput('');
-              }
-            }}
-            className="whitespace-nowrap"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add
-          </Button>
-        </div>
-      </div>
-    );
-  };
+  
+    // Rest of the component stays the same...
+  }
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 p-6 max-w-7xl mx-auto">
@@ -505,6 +453,7 @@ const DegreeProposal = () => {
                     <CourseDropdown
                       discipline={discipline}
                       onCourseSelect={(courseCode) => addCourse(discipline, courseCode)} // Now passes both parameters
+                      makeApiCall={makeApiCall} // Pass the function down
                     />
                   </div>
 
