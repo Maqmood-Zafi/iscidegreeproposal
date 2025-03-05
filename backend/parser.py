@@ -1,7 +1,7 @@
-# backend/app.py
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, session
 import pandas as pd
 from flask_cors import CORS
+import secrets  # Import the secrets module
 
 app = Flask(__name__)
 CORS(app, resources={
@@ -12,60 +12,68 @@ CORS(app, resources={
     }
 })
 
+# VERY IMPORTANT: Use the environment variable.  If it's not set, *then* generate a random one.
+# This is much better than hardcoding, and allows for easy configuration in Render.
+import os
+app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(16))
+
+
 class DegreeProposal:
-    def __init__(self):
+    def __init__(self, data=None):
+        if data:
+            self.disciplines = data.get('disciplines', {"ISCI": []})
+        else:
+            self.reset_proposal()
+
         try:
-            # Read CSV and strip whitespace from column names
-            self.courses_df = pd.read_csv('courses.csv')
+            # Read CSV, handling missing values correctly.  keep_default_na=True is crucial.
+            self.courses_df = pd.read_csv('courses.csv', keep_default_na=True, na_values=[''])
             self.courses_df.columns = self.courses_df.columns.str.strip()
-            
-            # Convert columns to appropriate types
+
+            # Convert columns.  No need for fillna('') here anymore.
             self.courses_df['Course'] = self.courses_df['Course'].astype(str)
             self.courses_df['Course_code'] = self.courses_df['Course_code'].astype(str)
             self.courses_df['Title'] = self.courses_df['Title'].astype(str)
-            
-            self.reset_proposal()
+
+
         except Exception as e:
             print(f"Error initializing DegreeProposal: {str(e)}")
             raise
-        
+
     def reset_proposal(self):
-        # Reset to initial state with only ISCI discipline
         self.disciplines = {"ISCI": []}
-        
+
     def add_discipline(self, discipline_name):
         if discipline_name != "ISCI" and discipline_name not in self.disciplines:
             self.disciplines[discipline_name] = []
             return True
         return False
-    
+
     def remove_discipline(self, discipline_name):
         if discipline_name != "ISCI" and discipline_name in self.disciplines:
             del self.disciplines[discipline_name]
             return True
         return False
-    
+
     def add_course(self, discipline_name, course_code):
         if discipline_name not in self.disciplines:
             return False
-            
+
         course_data = self.courses_df[self.courses_df['Course_code'] == course_code]
         if course_data.empty:
             return False
-            
-        # Check if course is already added to any discipline
+
         if any(course_code in courses for courses in self.disciplines.values()):
             return False
-            
-        # For ISCI discipline, only allow ISCI courses
+
         if discipline_name == "ISCI":
-            isci_value = course_data.iloc[0]['isci_courses']
-            if pd.isna(isci_value) or isci_value <= 0:
+            isci_value = course_data['isci_courses'].iloc[0]
+            if pd.isna(isci_value):  # Correctly check for NaN
                 return False
-            
+
         self.disciplines[discipline_name].append(course_code)
         return True
-    
+
     def remove_course(self, discipline_name, course_code):
         if discipline_name in self.disciplines:
             if course_code in self.disciplines[discipline_name]:
@@ -74,31 +82,44 @@ class DegreeProposal:
         return False
 
     def is_400_level(self, course_code):
-        course_data = self.courses_df[self.courses_df['Course_code'] == course_code].iloc[0]
-        course_num = str(course_data['Course'])
+        course_data = self.courses_df[self.courses_df['Course_code'] == course_code]
+        if course_data.empty:
+             return False
+
+        course_num = str(course_data['Course'].iloc[0])
         base_num = ''.join(filter(str.isdigit, course_num.split()[0]))
-        return int(base_num) >= 400
+        return base_num.isdigit() and int(base_num) >= 400
 
     def get_course_credits(self, course_code):
-        course_data = self.courses_df[self.courses_df['Course_code'] == course_code].iloc[0]
-        
-        # Get raw values from CSV
+        course_data = self.courses_df[self.courses_df['Course_code'] == course_code]
+        if course_data.empty:
+             return {
+                 'discipline_credit': 0,
+                 'science_credit': False,
+                 'science_value': 0,  # Keep as number
+                 'isci_course': False,
+                 'isci_value': 0,    # Keep as number
+                 'honorary_credit': False,
+                 'honorary_value': 0  # Keep as number
+             }
+
+        course_data = course_data.iloc[0]
         science_value = course_data['science_credits']
         honorary_value = course_data['honorary_credits']
         isci_value = course_data['isci_courses']
-        
+
         return {
             'discipline_credit': float(course_data['discipline_credit']),
-            # Only count as science credit if the science_credits column has a value
-            'science_credit': not pd.isna(science_value) and science_value > 0,
-            'science_value': float(science_value) if not pd.isna(science_value) else 0,
-            'isci_course': not pd.isna(isci_value) and isci_value > 0,
-            'isci_value': float(isci_value) if not pd.isna(isci_value) else 0,
-            'honorary_credit': not pd.isna(honorary_value) and honorary_value > 0,
-            'honorary_value': float(honorary_value) if not pd.isna(honorary_value) else 0
+            'science_credit': not pd.isna(science_value) and science_value > 0, #Corrected
+            'science_value': float(science_value) if not pd.isna(science_value) else 0, # Corrected: Keep as number
+            'isci_course': not pd.isna(isci_value) and isci_value > 0, #Corrected
+            'isci_value': float(isci_value) if not pd.isna(isci_value) else 0,   # Corrected: Keep as number
+            'honorary_credit': not pd.isna(honorary_value) and honorary_value > 0, #Corrected
+            'honorary_value': float(honorary_value) if not pd.isna(honorary_value) else 0 # Corrected: Keep as number
         }
 
     def validate_proposal(self):
+        # ... (rest of your validation logic, *unchanged* from the previous CORRECT version) ...
         validation_results = {
             'success': True,
             'messages': [],
@@ -306,45 +327,50 @@ class DegreeProposal:
             validation_results['messages'].append("Must have at least 12 credits worth of 400-level courses")
 
         return validation_results
-        
+
     def search_courses(self, query, limit=10):
         if not query or len(query) < 2:
             return []
-            
+
         query = query.lower()
         try:
-            # Convert columns to string and handle NaN values
-            self.courses_df['Course'] = self.courses_df['Course'].fillna('').astype(str)
-            self.courses_df['Course_code'] = self.courses_df['Course_code'].fillna('').astype(str)
-            self.courses_df['Title'] = self.courses_df['Title'].fillna('').astype(str)
-            
-            # Search using string methods
             mask = (
-                self.courses_df['Course_code'].str.lower().str.contains(query, na=False) | 
+                self.courses_df['Course_code'].str.lower().str.contains(query, na=False) |
                 self.courses_df['Title'].str.lower().str.contains(query, na=False)
             )
             matched_courses = self.courses_df[mask]
-            
-            # Sort by exact matches first
+
             matched_courses = matched_courses.sort_values(
                 by='Course_code',
                 key=lambda x: x.str.lower().str.startswith(query).astype(int),
                 ascending=False
             )
-            
-            # Return limited results
-            results = matched_courses.head(limit).to_dict('records')
-            return [{'code': str(r['Course_code']), 'name': str(r['Title'])} for r in results]
+            results = [
+                {'code': row['Course_code'], 'name': row['Title']}
+                for _, row in matched_courses.head(limit).iterrows()
+            ]
+            return results
+
         except Exception as e:
             print(f"Error in search_courses: {str(e)}")
             return []
 
-degree_proposal = DegreeProposal()
+    def serialize(self):
+        return {
+            'disciplines': self.disciplines
+        }
 
+    @staticmethod
+    def deserialize(data):
+        return DegreeProposal(data)
+
+
+
+# --- API Endpoints ---
 @app.route('/reset', methods=['POST'])
 def reset_proposal():
     try:
-        degree_proposal.reset_proposal()
+        session['degree_proposal'] = DegreeProposal().serialize()
         return jsonify({
             'success': True,
             'message': 'Proposal reset successfully'
@@ -357,21 +383,23 @@ def reset_proposal():
 
 @app.route('/disciplines', methods=['POST'])
 def add_discipline():
+    degree_proposal = DegreeProposal.deserialize(session.get('degree_proposal', {}))
     data = request.json
     success = degree_proposal.add_discipline(data['discipline_name'])
-    
-    # Return updated validation after adding discipline
+
     if success:
+        session['degree_proposal'] = degree_proposal.serialize()
         results = degree_proposal.validate_proposal()
         return jsonify({'success': success, 'validation': results})
     return jsonify({'success': success})
 
 @app.route('/disciplines/<discipline_name>', methods=['DELETE'])
 def remove_discipline(discipline_name):
+    degree_proposal = DegreeProposal.deserialize(session.get('degree_proposal', {}))
     success = degree_proposal.remove_discipline(discipline_name)
-    
-    # Return updated validation after removing discipline
+
     if success:
+        session['degree_proposal'] = degree_proposal.serialize()
         results = degree_proposal.validate_proposal()
         return jsonify({'success': success, 'validation': results})
     return jsonify({'success': success})
@@ -379,14 +407,16 @@ def remove_discipline(discipline_name):
 @app.route('/courses', methods=['POST'])
 def add_course():
     try:
+        degree_proposal = DegreeProposal.deserialize(session.get('degree_proposal', {}))
         data = request.json
         success = degree_proposal.add_course(data['discipline_name'], data['course_code'])
-        
+
         if success:
+            session['degree_proposal'] = degree_proposal.serialize()
             course_data = degree_proposal.courses_df[
                 degree_proposal.courses_df['Course_code'] == data['course_code']
             ].iloc[0]
-            
+
             results = degree_proposal.validate_proposal()
             return jsonify({
                 'success': success,
@@ -397,19 +427,18 @@ def add_course():
                 }
             })
         else:
-            # Check why the course couldn't be added
             course_data = degree_proposal.courses_df[
                 degree_proposal.courses_df['Course_code'] == data['course_code']
             ]
             if not course_data.empty:
-                isci_course = not pd.isna(course_data.iloc[0]['isci_courses']) and course_data.iloc[0]['isci_courses'] > 0
+                isci_course =  not pd.isna(course_data['isci_courses'].iloc[0]) and course_data['isci_courses'].iloc[0] > 0
                 if data['discipline_name'] == "ISCI" and not isci_course:
                     return jsonify({
                         'success': False,
                         'message': 'Only ISCI courses can be added to the ISCI discipline'
                     })
-                        
-            return jsonify({'success': False})
+
+            return jsonify({'success': False, 'message': 'Course already exists or invalid course code.'})
     except Exception as e:
         return jsonify({
             'success': False,
@@ -418,23 +447,26 @@ def add_course():
 
 @app.route('/courses', methods=['DELETE'])
 def remove_course():
+    degree_proposal = DegreeProposal.deserialize(session.get('degree_proposal', {}))
     data = request.json
     success = degree_proposal.remove_course(data['discipline_name'], data['course_code'])
-    
-    # Return updated validation after removing course
+
     if success:
+        session['degree_proposal'] = degree_proposal.serialize()
         results = degree_proposal.validate_proposal()
         return jsonify({'success': success, 'validation': results})
     return jsonify({'success': success})
 
 @app.route('/validate', methods=['GET'])
-def validate_proposal():
+def validate_proposal_route():
+    degree_proposal = DegreeProposal.deserialize(session.get('degree_proposal', {}))
     results = degree_proposal.validate_proposal()
     return jsonify(results)
 
 @app.route('/search-courses', methods=['GET'])
 def search_courses():
     try:
+        degree_proposal = DegreeProposal.deserialize(session.get('degree_proposal',{}))
         query = request.args.get('query', '')
         results = degree_proposal.search_courses(query)
         return jsonify(results)
@@ -444,5 +476,3 @@ def search_courses():
 
 if __name__ == '__main__':
     app.run(debug=True)
-
-    #test
