@@ -350,7 +350,7 @@ const DegreeProposal = () => {
     return false;
   };
 
-  // Fix the CourseDropdown component
+  // Complete CourseDropdown component implementation
   const CourseDropdown = ({ discipline, onCourseSelect, makeApiCall }) => {
     const [searchInput, setSearchInput] = useState('');
     const [results, setResults] = useState([]);
@@ -364,6 +364,7 @@ const DegreeProposal = () => {
     const handleSearch = useCallback(async (query) => {
       if (!query || query.length < 2) {
         setResults([]);
+        setIsOpen(false);
         return;
       }
   
@@ -372,16 +373,88 @@ const DegreeProposal = () => {
         // Use parent's makeApiCall function instead of direct fetch
         const data = await makeApiCall(`/search-courses?query=${encodeURIComponent(query)}`, 'GET');
         setResults(data.results || []); // Access the results property
+        setIsOpen(data.results?.length > 0);
       } catch (err) {
         console.error('Search failed:', err);
         setResults([]);
+        setIsOpen(false);
       } finally {
         setLoading(false);
       }
-    }, []);
+    }, [makeApiCall]);
   
-    // Rest of the component stays the same...
-  }
+    useEffect(() => {
+      // Clear existing timeout
+      if (searchTimeout.current) {
+        clearTimeout(searchTimeout.current);
+      }
+  
+      // Set a timeout to prevent too many API calls
+      searchTimeout.current = setTimeout(() => {
+        handleSearch(searchInput);
+      }, 300);
+  
+      return () => {
+        if (searchTimeout.current) {
+          clearTimeout(searchTimeout.current);
+        }
+      };
+    }, [searchInput, handleSearch]);
+  
+    const handleInputChange = (e) => {
+      setSearchInput(e.target.value);
+    };
+  
+    const handleInputFocus = () => {
+      if (searchInput.length >= 2) {
+        setIsOpen(true);
+      }
+    };
+  
+    const handleItemClick = (courseCode) => {
+      onCourseSelect(courseCode);
+      setSearchInput('');
+      setIsOpen(false);
+    };
+  
+    return (
+      <div className="relative w-full" ref={dropdownRef}>
+        <div className="flex w-full">
+          <Input
+            ref={inputRef}
+            value={searchInput}
+            onChange={handleInputChange}
+            onFocus={handleInputFocus}
+            placeholder={`Search courses for ${discipline}`}
+            className="flex-1"
+          />
+        </div>
+        {isOpen && (
+          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg">
+            {loading ? (
+              <div className="p-4 text-center text-gray-500">Searching...</div>
+            ) : (
+              <ul className="max-h-64 overflow-auto">
+                {results.map((course) => (
+                  <li
+                    key={course.code}
+                    className="px-4 py-2 hover:bg-gray-100 cursor-pointer flex flex-col"
+                    onClick={() => handleItemClick(course.code)}
+                  >
+                    <span className="font-medium">{course.code}</span>
+                    <span className="text-sm text-gray-600">{course.name}</span>
+                  </li>
+                ))}
+                {results.length === 0 && (
+                  <li className="px-4 py-2 text-gray-500">No results found</li>
+                )}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 p-6 max-w-7xl mx-auto">
