@@ -2,6 +2,8 @@
 from flask import Flask, request, jsonify
 import pandas as pd
 from flask_cors import CORS
+import uuid
+import time
 
 app = Flask(__name__)
 CORS(app, resources={
@@ -11,6 +13,46 @@ CORS(app, resources={
         "allow_headers": ["Content-Type"]
     }
 })
+
+# Dictionary to store user proposals by session ID
+user_proposals = {}
+# Track last activity time for cleanup
+last_activity = {}
+# Session timeout (24 hours)
+SESSION_TIMEOUT = 86400
+
+def get_user_proposal(session_id=None):
+    """Get or create a proposal for the session"""
+    # Use provided session ID or generate a new one
+    if not session_id:
+        session_id = str(uuid.uuid4())
+    
+    # Create new proposal if needed
+    if session_id not in user_proposals:
+        user_proposals[session_id] = DegreeProposal()
+    
+    # Update last activity time
+    last_activity[session_id] = time.time()
+    
+    # Clean up inactive sessions occasionally
+    if len(user_proposals) > 100 or (time.time() % 3600 < 10):
+        cleanup_inactive_sessions()
+        
+    return session_id, user_proposals[session_id]
+
+def cleanup_inactive_sessions():
+    """Remove inactive sessions"""
+    current_time = time.time()
+    inactive_ids = [
+        session_id for session_id, last_time in last_activity.items()
+        if current_time - last_time > SESSION_TIMEOUT
+    ]
+    
+    for session_id in inactive_ids:
+        if session_id in user_proposals:
+            del user_proposals[session_id]
+        if session_id in last_activity:
+            del last_activity[session_id]
 
 class DegreeProposal:
     def __init__(self):
@@ -339,15 +381,20 @@ class DegreeProposal:
             print(f"Error in search_courses: {str(e)}")
             return []
 
-degree_proposal = DegreeProposal()
+
 
 @app.route('/reset', methods=['POST'])
 def reset_proposal():
     try:
-        degree_proposal.reset_proposal()
+        # Get session_id from query parameter or create new one
+        session_id = request.args.get('session')
+        session_id, proposal = get_user_proposal(session_id)
+        
+        proposal.reset_proposal()
         return jsonify({
             'success': True,
-            'message': 'Proposal reset successfully'
+            'message': 'Proposal reset successfully',
+            'session_id': session_id
         })
     except Exception as e:
         return jsonify({
@@ -357,59 +404,90 @@ def reset_proposal():
 
 @app.route('/disciplines', methods=['POST'])
 def add_discipline():
+    # Get session_id from query parameter
+    session_id = request.args.get('session')
+    session_id, proposal = get_user_proposal(session_id)
+    
     data = request.json
-    success = degree_proposal.add_discipline(data['discipline_name'])
+    success = proposal.add_discipline(data['discipline_name'])
     
     # Return updated validation after adding discipline
     if success:
-        results = degree_proposal.validate_proposal()
-        return jsonify({'success': success, 'validation': results})
-    return jsonify({'success': success})
+        results = proposal.validate_proposal()
+        return jsonify({
+            'success': success, 
+            'validation': results,
+            'session_id': session_id
+        })
+    return jsonify({
+        'success': success,
+        'session_id': session_id
+    })
 
 @app.route('/disciplines/<discipline_name>', methods=['DELETE'])
 def remove_discipline(discipline_name):
-    success = degree_proposal.remove_discipline(discipline_name)
+    # Get session_id from query parameter
+    session_id = request.args.get('session')
+    session_id, proposal = get_user_proposal(session_id)
+    
+    success = proposal.remove_discipline(discipline_name)
     
     # Return updated validation after removing discipline
     if success:
-        results = degree_proposal.validate_proposal()
-        return jsonify({'success': success, 'validation': results})
-    return jsonify({'success': success})
+        results = proposal.validate_proposal()
+        return jsonify({
+            'success': success, 
+            'validation': results,
+            'session_id': session_id
+        })
+    return jsonify({
+        'success': success,
+        'session_id': session_id
+    })
 
 @app.route('/courses', methods=['POST'])
 def add_course():
     try:
+        # Get session_id from query parameter
+        session_id = request.args.get('session')
+        session_id, proposal = get_user_proposal(session_id)
+        
         data = request.json
-        success = degree_proposal.add_course(data['discipline_name'], data['course_code'])
+        success = proposal.add_course(data['discipline_name'], data['course_code'])
         
         if success:
-            course_data = degree_proposal.courses_df[
-                degree_proposal.courses_df['Course_code'] == data['course_code']
+            course_data = proposal.courses_df[
+                proposal.courses_df['Course_code'] == data['course_code']
             ].iloc[0]
             
-            results = degree_proposal.validate_proposal()
+            results = proposal.validate_proposal()
             return jsonify({
                 'success': success,
                 'validation': results,
                 'course': {
                     'code': data['course_code'],
                     'title': course_data['Title']
-                }
+                },
+                'session_id': session_id
             })
         else:
             # Check why the course couldn't be added
-            course_data = degree_proposal.courses_df[
-                degree_proposal.courses_df['Course_code'] == data['course_code']
+            course_data = proposal.courses_df[
+                proposal.courses_df['Course_code'] == data['course_code']
             ]
             if not course_data.empty:
                 isci_course = not pd.isna(course_data.iloc[0]['isci_courses']) and course_data.iloc[0]['isci_courses'] > 0
                 if data['discipline_name'] == "ISCI" and not isci_course:
                     return jsonify({
                         'success': False,
-                        'message': 'Only ISCI courses can be added to the ISCI discipline'
+                        'message': 'Only ISCI courses can be added to the ISCI discipline',
+                        'session_id': session_id
                     })
                         
-            return jsonify({'success': False})
+            return jsonify({
+                'success': False,
+                'session_id': session_id
+            })
     except Exception as e:
         return jsonify({
             'success': False,
@@ -418,31 +496,58 @@ def add_course():
 
 @app.route('/courses', methods=['DELETE'])
 def remove_course():
+    # Get session_id from query parameter
+    session_id = request.args.get('session')
+    session_id, proposal = get_user_proposal(session_id)
+    
     data = request.json
-    success = degree_proposal.remove_course(data['discipline_name'], data['course_code'])
+    success = proposal.remove_course(data['discipline_name'], data['course_code'])
     
     # Return updated validation after removing course
     if success:
-        results = degree_proposal.validate_proposal()
-        return jsonify({'success': success, 'validation': results})
-    return jsonify({'success': success})
+        results = proposal.validate_proposal()
+        return jsonify({
+            'success': success, 
+            'validation': results,
+            'session_id': session_id
+        })
+    return jsonify({
+        'success': success,
+        'session_id': session_id
+    })
 
 @app.route('/validate', methods=['GET'])
 def validate_proposal():
-    results = degree_proposal.validate_proposal()
-    return jsonify(results)
+    # Get session_id from query parameter
+    session_id = request.args.get('session')
+    session_id, proposal = get_user_proposal(session_id)
+    
+    results = proposal.validate_proposal()
+    return jsonify({
+        **results,
+        'session_id': session_id
+    })
 
 @app.route('/search-courses', methods=['GET'])
 def search_courses():
     try:
+        # Get session_id from query parameter
+        session_id = request.args.get('session')
+        session_id, proposal = get_user_proposal(session_id)
+        
         query = request.args.get('query', '')
-        results = degree_proposal.search_courses(query)
-        return jsonify(results)
+        results = proposal.search_courses(query)
+        return jsonify({
+            'results': results,
+            'session_id': session_id
+        })
     except Exception as e:
         print(f"Search endpoint error: {str(e)}")
-        return jsonify([])
+        return jsonify({
+            'results': [],
+            'session_id': session_id if 'session_id' in locals() else None
+        })
 
 if __name__ == '__main__':
     app.run(debug=True)
 
-    
