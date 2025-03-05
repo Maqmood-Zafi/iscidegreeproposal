@@ -1,133 +1,95 @@
-from flask import Flask, request, jsonify, session
+# backend/app.py
+from flask import Flask, request, jsonify
 import pandas as pd
 from flask_cors import CORS
-import secrets
-import os
-import logging
-
-# Configure logging
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={
+    r"/*": {
+        "origins": "*",
+        "methods": ["GET", "POST", "DELETE"],
+        "allow_headers": ["Content-Type"]
+    }
+})
 
-# Use environment variable for secret key
-app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(16))
-
-
-class DegreeProposal:  # No changes needed within the class itself
-    def __init__(self, data=None):
-        if data:
-            self.disciplines = data.get('disciplines', {"ISCI": []})
-            logging.debug(f"DegreeProposal initialized from session: {self.disciplines}")
-        else:
-            self.reset_proposal()
-            logging.debug("DegreeProposal initialized new.")
-
+class DegreeProposal:
+    def __init__(self):
         try:
-            self.courses_df = pd.read_csv('courses.csv', keep_default_na=True, na_values=[''])
+            # Read CSV and strip whitespace from column names
+            self.courses_df = pd.read_csv('courses.csv')
             self.courses_df.columns = self.courses_df.columns.str.strip()
+            
+            # Convert columns to appropriate types
             self.courses_df['Course'] = self.courses_df['Course'].astype(str)
             self.courses_df['Course_code'] = self.courses_df['Course_code'].astype(str)
             self.courses_df['Title'] = self.courses_df['Title'].astype(str)
-            logging.debug("courses.csv loaded successfully.")
-
+            
+            self.reset_proposal()
         except Exception as e:
-            logging.error(f"Error initializing DegreeProposal: {str(e)}")
+            print(f"Error initializing DegreeProposal: {str(e)}")
             raise
-
+        
     def reset_proposal(self):
+        # Reset to initial state with only ISCI discipline
         self.disciplines = {"ISCI": []}
-        logging.debug("Proposal reset.")
-
-    def add_discipline(self, disciplines, discipline_name):
-        logging.debug(f"Adding discipline: {discipline_name}")
-        if discipline_name != "ISCI" and discipline_name not in disciplines:
-            new_disciplines = {**disciplines, discipline_name: []}  # Create a *new* dictionary
-            logging.debug(f"Discipline {discipline_name} added: {new_disciplines}")
-            return new_disciplines, True
-        logging.debug(f"Discipline {discipline_name} NOT added: {disciplines}")
-        return disciplines, False
-
-    def remove_discipline(self, disciplines, discipline_name):
-        logging.debug(f"Removing discipline: {discipline_name}")
-        if discipline_name != "ISCI" and discipline_name in disciplines:
-            new_disciplines = {k: v for k, v in disciplines.items() if k != discipline_name} # New dictionary
-            logging.debug(f"Discipline {discipline_name} removed: {new_disciplines}")
-            return new_disciplines, True
-        logging.debug(f"Discipline {discipline_name} NOT removed: {disciplines}")
-        return disciplines, False
-
-    def add_course(self, disciplines, discipline_name, course_code):
-        logging.debug(f"Adding course: {course_code} to {discipline_name}")
-        if discipline_name not in disciplines:
-            logging.debug(f"Discipline not found. Course NOT added.")
-            return disciplines, False
-
-        course_data = self.courses_df[self.courses_df['Course_code'] == course_code]
-        if course_data.empty:
-            logging.debug(f"Course not found. Course NOT added.")
-            return disciplines, False
-
-        if any(course_code in courses for courses in disciplines.values()):
-            logging.debug(f"Course already exists. Course NOT added.")
-            return disciplines, False
-
-        if discipline_name == "ISCI":
-            if pd.isna(course_data['isci_courses'].iloc[0]):
-                logging.debug(f"Not an ISCI course. Course NOT added.")
-                return disciplines, False
-
-        # Create a *new* dictionary with the updated course list
-        new_disciplines = {
-            **disciplines,
-            discipline_name: [*disciplines[discipline_name], course_code]
-        }
-        logging.debug(f"Course {course_code} added: {new_disciplines}")
-        return new_disciplines, True
-
-
-    def remove_course(self, disciplines, discipline_name, course_code):
-        logging.debug(f"Removing course: {course_code} from {discipline_name}")
-
-        if discipline_name in disciplines and course_code in disciplines[discipline_name]:
-            new_disciplines = {
-                **disciplines,
-                discipline_name: [c for c in disciplines[discipline_name] if c != course_code]  # New list
-            }
-            logging.debug(f"Course {course_code} removed: {new_disciplines}")
-            return new_disciplines, True
-        logging.debug(f"Course {course_code} NOT removed: {disciplines}")
-        return disciplines, False
-    def is_400_level(self, course_code):
+        
+    def add_discipline(self, discipline_name):
+        if discipline_name != "ISCI" and discipline_name not in self.disciplines:
+            self.disciplines[discipline_name] = []
+            return True
+        return False
+    
+    def remove_discipline(self, discipline_name):
+        if discipline_name != "ISCI" and discipline_name in self.disciplines:
+            del self.disciplines[discipline_name]
+            return True
+        return False
+    
+    def add_course(self, discipline_name, course_code):
+        if discipline_name not in self.disciplines:
+            return False
+            
         course_data = self.courses_df[self.courses_df['Course_code'] == course_code]
         if course_data.empty:
             return False
-        course_num = str(course_data['Course'].iloc[0])
+            
+        # Check if course is already added to any discipline
+        if any(course_code in courses for courses in self.disciplines.values()):
+            return False
+            
+        # For ISCI discipline, only allow ISCI courses
+        if discipline_name == "ISCI":
+            isci_value = course_data.iloc[0]['isci_courses']
+            if pd.isna(isci_value) or isci_value <= 0:
+                return False
+            
+        self.disciplines[discipline_name].append(course_code)
+        return True
+    
+    def remove_course(self, discipline_name, course_code):
+        if discipline_name in self.disciplines:
+            if course_code in self.disciplines[discipline_name]:
+                self.disciplines[discipline_name].remove(course_code)
+                return True
+        return False
+
+    def is_400_level(self, course_code):
+        course_data = self.courses_df[self.courses_df['Course_code'] == course_code].iloc[0]
+        course_num = str(course_data['Course'])
         base_num = ''.join(filter(str.isdigit, course_num.split()[0]))
-        return base_num.isdigit() and int(base_num) >= 400
+        return int(base_num) >= 400
 
     def get_course_credits(self, course_code):
-        course_data = self.courses_df[self.courses_df['Course_code'] == course_code]
-        if course_data.empty:
-            return {
-                'discipline_credit': 0,
-                'science_credit': False,
-                'science_value': 0,
-                'isci_course': False,
-                'isci_value': 0,
-                'honorary_credit': False,
-                'honorary_value': 0
-            }
-
-        course_data = course_data.iloc[0]
+        course_data = self.courses_df[self.courses_df['Course_code'] == course_code].iloc[0]
+        
+        # Get raw values from CSV
         science_value = course_data['science_credits']
         honorary_value = course_data['honorary_credits']
         isci_value = course_data['isci_courses']
-
+        
         return {
             'discipline_credit': float(course_data['discipline_credit']),
+            # Only count as science credit if the science_credits column has a value
             'science_credit': not pd.isna(science_value) and science_value > 0,
             'science_value': float(science_value) if not pd.isna(science_value) else 0,
             'isci_course': not pd.isna(isci_value) and isci_value > 0,
@@ -136,7 +98,7 @@ class DegreeProposal:  # No changes needed within the class itself
             'honorary_value': float(honorary_value) if not pd.isna(honorary_value) else 0
         }
 
-    def validate_proposal(self, disciplines): # Validation now takes disciplines as argument
+    def validate_proposal(self):
         validation_results = {
             'success': True,
             'messages': [],
@@ -144,7 +106,7 @@ class DegreeProposal:  # No changes needed within the class itself
             'science_credits': 0,
             'isci_credits': 0,
             'honorary_credits': 0,
-            'total_400_level_credits': 0,
+            'total_400_level_credits': 0,  # Changed from total_400_level
             'disciplines_400_level': {},
             'non_isci_science_credits': 0,
             'non_isci_honorary_credits': 0,
@@ -177,7 +139,7 @@ class DegreeProposal:  # No changes needed within the class itself
                 'honorary_credits': {
                     'required': '≤ 9',
                     'actual': 0,
-                    'met': True
+                    'met': True  # Initially true as 0 is valid
                 },
                 'total_400_level': {
                     'required': 12,
@@ -188,22 +150,24 @@ class DegreeProposal:  # No changes needed within the class itself
             }
         }
 
-        non_isci_disciplines = [d for d in disciplines.keys() if d != "ISCI"]  # Use passed-in disciplines
+        # Validate number of disciplines (excluding ISCI)
+        non_isci_disciplines = [d for d in self.disciplines.keys() if d != "ISCI"]
         validation_results['requirements']['discipline_count']['actual'] = len(non_isci_disciplines)
         validation_results['requirements']['discipline_count']['met'] = 2 <= len(non_isci_disciplines) <= 3
-
+        
         if not validation_results['requirements']['discipline_count']['met']:
             validation_results['success'] = False
             validation_results['messages'].append("Must have 2-3 disciplines (excluding ISCI)")
 
-        for discipline, courses in disciplines.items():  # Use passed-in disciplines
+        # Check each discipline has at least 9 credits
+        for discipline, courses in self.disciplines.items():
             discipline_credits = sum(self.get_course_credits(course)['discipline_credit'] for course in courses)
-
+            
             validation_results['requirements']['disciplines_requirements'][discipline] = {
                 'course_count': {
-                    'required': 7 if discipline == "ISCI" else 9,
+                    'required': 7 if discipline == "ISCI" else 9,  # Different requirement for ISCI
                     'actual': discipline_credits,
-                    'met': discipline_credits >= (7 if discipline == "ISCI" else 9)
+                    'met': discipline_credits >= (7 if discipline == "ISCI" else 9)  # Different check for ISCI
                 },
                 'has_400_level': {
                     'required': True,
@@ -211,179 +175,219 @@ class DegreeProposal:  # No changes needed within the class itself
                     'met': False
                 }
             }
-
+            
             if (discipline == "ISCI" and discipline_credits < 7) or \
                (discipline != "ISCI" and discipline_credits < 9):
                 validation_results['success'] = False
                 validation_results['messages'].append(
                     f"Discipline {discipline} must have at least {7 if discipline == 'ISCI' else 9} credits"
                 )
-
+            
+            # Rest of the 400-level validation remains the same
             discipline_400_level = sum(1 for course in courses if self.is_400_level(course))
             validation_results['disciplines_400_level'][discipline] = discipline_400_level
-
+            
             if discipline != "ISCI":
                 validation_results['requirements']['disciplines_requirements'][discipline]['has_400_level']['actual'] = discipline_400_level > 0
                 validation_results['requirements']['disciplines_requirements'][discipline]['has_400_level']['met'] = discipline_400_level > 0
-
+                
                 if discipline_400_level < 1:
                     validation_results['success'] = False
                     validation_results['messages'].append(f"Discipline {discipline} must have at least one 400-level course")
 
+        # Initialize total credits outside the loop
         total_credits = 0
+
+        # Initialize variables to track regular and honorary science credits
         non_isci_science_credits = 0
         total_science_credits = 0
         honorary_credits_available = 0
+
+        # Initialize 400-level credits counter
         total_400_level_credits = 0
 
-        for discipline, courses in disciplines.items():  # Use passed-in disciplines
+        # Calculate initial credits
+        for discipline, courses in self.disciplines.items():
             discipline_total = 0
             for course in courses:
                 credits = self.get_course_credits(course)
-
+                
+                # Add to 400-level credits if applicable
                 if self.is_400_level(course):
                     total_400_level_credits += credits['discipline_credit']
-
+                
                 if discipline == "ISCI":
                     if credits['isci_course']:
                         isci_value = credits['isci_value'] or credits['discipline_credit']
                         validation_results['isci_credits'] += isci_value
                         total_science_credits += isci_value
                 else:
+                    # Add to discipline total
                     discipline_total += credits['discipline_credit']
-
+                    
+                    # Track regular science credits
                     if credits['science_credit']:
                         science_value = credits['science_value']
                         non_isci_science_credits += science_value
                         total_science_credits += science_value
-
+                    
+                    # Track available honorary credits
                     if credits['honorary_credit']:
                         honorary_value = credits['honorary_value']
                         honorary_credits_available += honorary_value
                         validation_results['non_isci_honorary_credits'] = honorary_credits_available
 
+            # Add discipline total to total credits
             if discipline != "ISCI":
                 total_credits += discipline_total
 
+        # Calculate how many honorary credits can be used (up to 9)
         honorary_credits_used = min(9, honorary_credits_available)
+
+        # Update science credit totals including honorary credits
         validation_results['non_isci_science_credits'] = non_isci_science_credits + honorary_credits_used
         total_science = total_science_credits + honorary_credits_used
 
+        # Update validation results
         validation_results['requirements']['science_credits']['actual'] = total_science
         validation_results['requirements']['science_credits']['met'] = total_science >= 40
+
         validation_results['requirements']['non_isci_science_credits']['actual'] = validation_results['non_isci_science_credits']
         validation_results['requirements']['non_isci_science_credits']['met'] = validation_results['non_isci_science_credits'] >= 27
+
+        # Update the total credits in validation results
         validation_results['total_credits'] = total_credits
         validation_results['requirements']['total_credits']['actual'] = total_credits
         validation_results['requirements']['total_credits']['met'] = total_credits >= 33
+
+        # Update requirements check
         validation_results['requirements']['isci_credits']['actual'] = validation_results['isci_credits']
         validation_results['requirements']['isci_credits']['met'] = validation_results['isci_credits'] >= 7
+        
         validation_results['requirements']['honorary_credits']['actual'] = validation_results['non_isci_honorary_credits']
         validation_results['requirements']['honorary_credits']['met'] = validation_results['non_isci_honorary_credits'] <= 9
+        
         validation_results['requirements']['total_400_level']['actual'] = validation_results['total_400_level_credits']
         validation_results['requirements']['total_400_level']['met'] = validation_results['total_400_level_credits'] >= 12
+
+        # Update the validation results with 400-level credits
         validation_results['total_400_level_credits'] = total_400_level_credits
         validation_results['requirements']['total_400_level']['actual'] = total_400_level_credits
         validation_results['requirements']['total_400_level']['met'] = total_400_level_credits >= 12
 
+        # Validate ISCI requirements
         if not validation_results['requirements']['isci_credits']['met']:
             validation_results['success'] = False
             validation_results['messages'].append("Must have at least 7 credits of ISCI courses")
 
+        # Validate total credits (excluding ISCI)
         if not validation_results['requirements']['total_credits']['met']:
             validation_results['success'] = False
             validation_results['messages'].append("Must have at least 33 total credits across non-ISCI disciplines")
 
+        # Validate science credits
         if not validation_results['requirements']['science_credits']['met']:
             validation_results['success'] = False
             validation_results['messages'].append("Must have at least 40 total science credits")
 
+        # Within the non-ISCI disciplines, validate science credits
         if not validation_results['requirements']['non_isci_science_credits']['met']:
             validation_results['success'] = False
             validation_results['messages'].append("Must have at least 27 science credits in non-ISCI disciplines")
 
+        # Validate honorary credits
         if not validation_results['requirements']['honorary_credits']['met']:
             validation_results['success'] = False
             validation_results['messages'].append("Maximum 9 honorary credits can count toward the 27 science credits requirement")
+
+        # Validate 400-level requirements
         if not validation_results['requirements']['total_400_level']['met']:
             validation_results['success'] = False
             validation_results['messages'].append("Must have at least 12 credits worth of 400-level courses")
 
         return validation_results
-
-    def search_courses(self, query, limit=10):  # No changes needed
+        
+    def search_courses(self, query, limit=10):
         if not query or len(query) < 2:
             return []
-
+            
         query = query.lower()
         try:
+            # Convert columns to string and handle NaN values
+            self.courses_df['Course'] = self.courses_df['Course'].fillna('').astype(str)
+            self.courses_df['Course_code'] = self.courses_df['Course_code'].fillna('').astype(str)
+            self.courses_df['Title'] = self.courses_df['Title'].fillna('').astype(str)
+            
+            # Search using string methods
             mask = (
-                self.courses_df['Course_code'].str.lower().str.contains(query, na=False) |
+                self.courses_df['Course_code'].str.lower().str.contains(query, na=False) | 
                 self.courses_df['Title'].str.lower().str.contains(query, na=False)
             )
             matched_courses = self.courses_df[mask]
-
+            
+            # Sort by exact matches first
             matched_courses = matched_courses.sort_values(
                 by='Course_code',
                 key=lambda x: x.str.lower().str.startswith(query).astype(int),
                 ascending=False
             )
-            results = [
-                {'code': row['Course_code'], 'name': row['Title']}
-                for _, row in matched_courses.head(limit).iterrows()
-            ]
-            return results
-
+            
+            # Return limited results
+            results = matched_courses.head(limit).to_dict('records')
+            return [{'code': str(r['Course_code']), 'name': str(r['Title'])} for r in results]
         except Exception as e:
-            logging.error(f"Error in search_courses: {str(e)}")
+            print(f"Error in search_courses: {str(e)}")
             return []
 
-
-# --- API Endpoints ---
+degree_proposal = DegreeProposal()
 
 @app.route('/reset', methods=['POST'])
 def reset_proposal():
     try:
-        session['degree_proposal'] = DegreeProposal().serialize()  # Directly set, no helper
-        return jsonify({'success': True, 'message': 'Proposal reset successfully'})
+        degree_proposal.reset_proposal()
+        return jsonify({
+            'success': True,
+            'message': 'Proposal reset successfully'
+        })
     except Exception as e:
-        logging.exception("Error in /reset")
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
 
 @app.route('/disciplines', methods=['POST'])
 def add_discipline():
-    proposal = DegreeProposal(session.get('degree_proposal'))  # Load from session
-    disciplines = proposal.disciplines  # Work with a copy
     data = request.json
-    new_disciplines, success = proposal.add_discipline(disciplines, data['discipline_name']) # Get *new* disciplines
+    success = degree_proposal.add_discipline(data['discipline_name'])
+    
+    # Return updated validation after adding discipline
     if success:
-        session['degree_proposal'] = {'disciplines': new_disciplines} # *Replace* in session
-        results = proposal.validate_proposal(new_disciplines)  # Validate *new* disciplines
+        results = degree_proposal.validate_proposal()
         return jsonify({'success': success, 'validation': results})
     return jsonify({'success': success})
 
 @app.route('/disciplines/<discipline_name>', methods=['DELETE'])
 def remove_discipline(discipline_name):
-    proposal = DegreeProposal(session.get('degree_proposal'))
-    disciplines = proposal.disciplines
-    new_disciplines, success = proposal.remove_discipline(disciplines, discipline_name)  # Get *new* disciplines
+    success = degree_proposal.remove_discipline(discipline_name)
+    
+    # Return updated validation after removing discipline
     if success:
-        session['degree_proposal'] = {'disciplines': new_disciplines} # *Replace* in session
-        results = proposal.validate_proposal(new_disciplines)   # Validate *new* disciplines
+        results = degree_proposal.validate_proposal()
         return jsonify({'success': success, 'validation': results})
     return jsonify({'success': success})
 
 @app.route('/courses', methods=['POST'])
 def add_course():
     try:
-        proposal = DegreeProposal(session.get('degree_proposal'))
-        disciplines = proposal.disciplines
         data = request.json
-        new_disciplines, success = proposal.add_course(disciplines, data['discipline_name'], data['course_code']) # New disciplines
+        success = degree_proposal.add_course(data['discipline_name'], data['course_code'])
+        
         if success:
-            session['degree_proposal'] = {'disciplines': new_disciplines}  # *Replace*
-            course_data = proposal.courses_df[proposal.courses_df['Course_code'] == data['course_code']].iloc[0]
-            results = proposal.validate_proposal(new_disciplines)  # Validate *new* disciplines
+            course_data = degree_proposal.courses_df[
+                degree_proposal.courses_df['Course_code'] == data['course_code']
+            ].iloc[0]
+            
+            results = degree_proposal.validate_proposal()
             return jsonify({
                 'success': success,
                 'validation': results,
@@ -393,40 +397,52 @@ def add_course():
                 }
             })
         else:
-            return jsonify({'success': False, 'message': 'Course already exists, is invalid, or discipline does not exist.'})
+            # Check why the course couldn't be added
+            course_data = degree_proposal.courses_df[
+                degree_proposal.courses_df['Course_code'] == data['course_code']
+            ]
+            if not course_data.empty:
+                isci_course = not pd.isna(course_data.iloc[0]['isci_courses']) and course_data.iloc[0]['isci_courses'] > 0
+                if data['discipline_name'] == "ISCI" and not isci_course:
+                    return jsonify({
+                        'success': False,
+                        'message': 'Only ISCI courses can be added to the ISCI discipline'
+                    })
+                        
+            return jsonify({'success': False})
     except Exception as e:
-        logging.exception("Error in /courses (POST)")
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
 
 @app.route('/courses', methods=['DELETE'])
 def remove_course():
-    proposal = DegreeProposal(session.get('degree_proposal'))
-    disciplines = proposal.disciplines
     data = request.json
-    new_disciplines, success = proposal.remove_course(disciplines, data['discipline_name'], data['course_code']) # New disciplines
+    success = degree_proposal.remove_course(data['discipline_name'], data['course_code'])
+    
+    # Return updated validation after removing course
     if success:
-        session['degree_proposal'] = {'disciplines': new_disciplines}  # *Replace*
-        results = proposal.validate_proposal(new_disciplines)  # Validate *new* disciplines
+        results = degree_proposal.validate_proposal()
         return jsonify({'success': success, 'validation': results})
     return jsonify({'success': success})
 
 @app.route('/validate', methods=['GET'])
-def validate_proposal_route():
-    proposal = DegreeProposal(session.get('degree_proposal'))
-    results = proposal.validate_proposal(proposal.disciplines) # Validate current disciplines
+def validate_proposal():
+    results = degree_proposal.validate_proposal()
     return jsonify(results)
 
 @app.route('/search-courses', methods=['GET'])
 def search_courses():
     try:
-        proposal = DegreeProposal(session.get('degree_proposal'))  # Still needed for courses_df
         query = request.args.get('query', '')
-        results = proposal.search_courses(query)
+        results = degree_proposal.search_courses(query)
         return jsonify(results)
     except Exception as e:
-        logging.exception("Error in /search-courses")
+        print(f"Search endpoint error: {str(e)}")
         return jsonify([])
-
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+    
