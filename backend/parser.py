@@ -3,7 +3,6 @@ import pandas as pd
 from flask_cors import CORS
 import secrets
 import os
-from copy import deepcopy
 import logging
 
 # Configure logging
@@ -13,19 +12,18 @@ logging.basicConfig(level=logging.DEBUG,
 app = Flask(__name__)
 CORS(app)
 
-# Use environment variable for secret key, fallback to random for development
+# Use environment variable for secret key
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(16))
 
 
-class DegreeProposal:
+class DegreeProposal:  # No changes needed within the class itself
     def __init__(self, data=None):
         if data:
-            # Use deepcopy to ensure we have a completely independent copy
-            self.disciplines = deepcopy(data.get('disciplines', {"ISCI": []}))
-            logging.debug(f"DegreeProposal initialized from session data: {self.disciplines}")
+            self.disciplines = data.get('disciplines', {"ISCI": []})
+            logging.debug(f"DegreeProposal initialized from session: {self.disciplines}")
         else:
             self.reset_proposal()
-            logging.debug("DegreeProposal initialized with new proposal.")
+            logging.debug("DegreeProposal initialized new.")
 
         try:
             self.courses_df = pd.read_csv('courses.csv', keep_default_na=True, na_values=[''])
@@ -34,67 +32,74 @@ class DegreeProposal:
             self.courses_df['Course_code'] = self.courses_df['Course_code'].astype(str)
             self.courses_df['Title'] = self.courses_df['Title'].astype(str)
             logging.debug("courses.csv loaded successfully.")
+
         except Exception as e:
-            logging.error(f"Error initializing DegreeProposal: {str(e)}")  # Log as ERROR
+            logging.error(f"Error initializing DegreeProposal: {str(e)}")
             raise
 
     def reset_proposal(self):
         self.disciplines = {"ISCI": []}
         logging.debug("Proposal reset.")
 
-    def add_discipline(self, discipline_name):
+    def add_discipline(self, disciplines, discipline_name):
         logging.debug(f"Adding discipline: {discipline_name}")
-        if discipline_name != "ISCI" and discipline_name not in self.disciplines:
-            self.disciplines[discipline_name] = []
-            logging.debug(f"Discipline {discipline_name} added. Disciplines: {self.disciplines}")
-            return True
-        logging.debug(f"Discipline {discipline_name} NOT added. Disciplines: {self.disciplines}")
-        return False
+        if discipline_name != "ISCI" and discipline_name not in disciplines:
+            new_disciplines = {**disciplines, discipline_name: []}  # Create a *new* dictionary
+            logging.debug(f"Discipline {discipline_name} added: {new_disciplines}")
+            return new_disciplines, True
+        logging.debug(f"Discipline {discipline_name} NOT added: {disciplines}")
+        return disciplines, False
 
-    def remove_discipline(self, discipline_name):
+    def remove_discipline(self, disciplines, discipline_name):
         logging.debug(f"Removing discipline: {discipline_name}")
-        if discipline_name != "ISCI" and discipline_name in self.disciplines:
-            del self.disciplines[discipline_name]
-            logging.debug(f"Discipline {discipline_name} removed. Disciplines: {self.disciplines}")
-            return True
-        logging.debug(f"Discipline {discipline_name} NOT removed. Disciplines: {self.disciplines}")
-        return False
+        if discipline_name != "ISCI" and discipline_name in disciplines:
+            new_disciplines = {k: v for k, v in disciplines.items() if k != discipline_name} # New dictionary
+            logging.debug(f"Discipline {discipline_name} removed: {new_disciplines}")
+            return new_disciplines, True
+        logging.debug(f"Discipline {discipline_name} NOT removed: {disciplines}")
+        return disciplines, False
 
-    def add_course(self, discipline_name, course_code):
-        logging.debug(f"Adding course: {course_code} to discipline: {discipline_name}")
-        if discipline_name not in self.disciplines:
-            logging.debug(f"Discipline {discipline_name} not found. Course NOT added.")
-            return False
+    def add_course(self, disciplines, discipline_name, course_code):
+        logging.debug(f"Adding course: {course_code} to {discipline_name}")
+        if discipline_name not in disciplines:
+            logging.debug(f"Discipline not found. Course NOT added.")
+            return disciplines, False
 
         course_data = self.courses_df[self.courses_df['Course_code'] == course_code]
         if course_data.empty:
-            logging.debug(f"Course {course_code} not found in courses.csv. Course NOT added.")
-            return False
+            logging.debug(f"Course not found. Course NOT added.")
+            return disciplines, False
 
-        if any(course_code in courses for courses in self.disciplines.values()):
-            logging.debug(f"Course {course_code} already exists in proposal. Course NOT added.")
-            return False
+        if any(course_code in courses for courses in disciplines.values()):
+            logging.debug(f"Course already exists. Course NOT added.")
+            return disciplines, False
 
         if discipline_name == "ISCI":
-            isci_value = course_data['isci_courses'].iloc[0]
-            if pd.isna(isci_value):
-                logging.debug(f"Course {course_code} is not a valid ISCI course. Course NOT added.")
-                return False
+            if pd.isna(course_data['isci_courses'].iloc[0]):
+                logging.debug(f"Not an ISCI course. Course NOT added.")
+                return disciplines, False
 
-        self.disciplines[discipline_name].append(course_code)
-        logging.debug(f"Course {course_code} added to {discipline_name}. Disciplines: {self.disciplines}")
-        return True
+        # Create a *new* dictionary with the updated course list
+        new_disciplines = {
+            **disciplines,
+            discipline_name: [*disciplines[discipline_name], course_code]
+        }
+        logging.debug(f"Course {course_code} added: {new_disciplines}")
+        return new_disciplines, True
 
-    def remove_course(self, discipline_name, course_code):
-        logging.debug(f"Removing course: {course_code} from discipline: {discipline_name}")
-        if discipline_name in self.disciplines:
-            if course_code in self.disciplines[discipline_name]:
-                self.disciplines[discipline_name].remove(course_code)
-                logging.debug(f"Course {course_code} removed. Disciplines: {self.disciplines}")
-                return True
-        logging.debug(f"Course {course_code} NOT removed. Disciplines: {self.disciplines}")
-        return False
 
+    def remove_course(self, disciplines, discipline_name, course_code):
+        logging.debug(f"Removing course: {course_code} from {discipline_name}")
+
+        if discipline_name in disciplines and course_code in disciplines[discipline_name]:
+            new_disciplines = {
+                **disciplines,
+                discipline_name: [c for c in disciplines[discipline_name] if c != course_code]  # New list
+            }
+            logging.debug(f"Course {course_code} removed: {new_disciplines}")
+            return new_disciplines, True
+        logging.debug(f"Course {course_code} NOT removed: {disciplines}")
+        return disciplines, False
     def is_400_level(self, course_code):
         course_data = self.courses_df[self.courses_df['Course_code'] == course_code]
         if course_data.empty:
@@ -131,7 +136,7 @@ class DegreeProposal:
             'honorary_value': float(honorary_value) if not pd.isna(honorary_value) else 0
         }
 
-    def validate_proposal(self):
+    def validate_proposal(self, disciplines): # Validation now takes disciplines as argument
         validation_results = {
             'success': True,
             'messages': [],
@@ -183,7 +188,7 @@ class DegreeProposal:
             }
         }
 
-        non_isci_disciplines = [d for d in self.disciplines.keys() if d != "ISCI"]
+        non_isci_disciplines = [d for d in disciplines.keys() if d != "ISCI"]  # Use passed-in disciplines
         validation_results['requirements']['discipline_count']['actual'] = len(non_isci_disciplines)
         validation_results['requirements']['discipline_count']['met'] = 2 <= len(non_isci_disciplines) <= 3
 
@@ -191,7 +196,7 @@ class DegreeProposal:
             validation_results['success'] = False
             validation_results['messages'].append("Must have 2-3 disciplines (excluding ISCI)")
 
-        for discipline, courses in self.disciplines.items():
+        for discipline, courses in disciplines.items():  # Use passed-in disciplines
             discipline_credits = sum(self.get_course_credits(course)['discipline_credit'] for course in courses)
 
             validation_results['requirements']['disciplines_requirements'][discipline] = {
@@ -231,7 +236,7 @@ class DegreeProposal:
         honorary_credits_available = 0
         total_400_level_credits = 0
 
-        for discipline, courses in self.disciplines.items():
+        for discipline, courses in disciplines.items():  # Use passed-in disciplines
             discipline_total = 0
             for course in courses:
                 credits = self.get_course_credits(course)
@@ -305,7 +310,8 @@ class DegreeProposal:
             validation_results['messages'].append("Must have at least 12 credits worth of 400-level courses")
 
         return validation_results
-    def search_courses(self, query, limit=10):
+
+    def search_courses(self, query, limit=10):  # No changes needed
         if not query or len(query) < 2:
             return []
 
@@ -329,74 +335,55 @@ class DegreeProposal:
             return results
 
         except Exception as e:
-            logging.error(f"Error in search_courses: {str(e)}") # Log as ERROR
+            logging.error(f"Error in search_courses: {str(e)}")
             return []
 
-    def serialize(self):
-        return {
-            'disciplines': self.disciplines
-        }
-
-    @staticmethod
-    def deserialize(data):
-        return DegreeProposal(data)
 
 # --- API Endpoints ---
-
-def get_proposal():
-    if 'degree_proposal' not in session:
-        session['degree_proposal'] = DegreeProposal().serialize()
-    return DegreeProposal.deserialize(session['degree_proposal'])
-
-def save_proposal(proposal):
-    session['degree_proposal'] = proposal.serialize()
-    session.modified = True  # CRITICAL: Mark session as modified!
-
 
 @app.route('/reset', methods=['POST'])
 def reset_proposal():
     try:
-        save_proposal(DegreeProposal())
+        session['degree_proposal'] = DegreeProposal().serialize()  # Directly set, no helper
         return jsonify({'success': True, 'message': 'Proposal reset successfully'})
     except Exception as e:
         logging.exception("Error in /reset")
         return jsonify({'success': False, 'message': str(e)}), 500
 
-
 @app.route('/disciplines', methods=['POST'])
 def add_discipline():
-    proposal = get_proposal()
+    proposal = DegreeProposal(session.get('degree_proposal'))  # Load from session
+    disciplines = proposal.disciplines  # Work with a copy
     data = request.json
-    success = proposal.add_discipline(data['discipline_name'])
+    new_disciplines, success = proposal.add_discipline(disciplines, data['discipline_name']) # Get *new* disciplines
     if success:
-        save_proposal(proposal)  # save_proposal *now* includes session.modified = True
-        results = proposal.validate_proposal()
+        session['degree_proposal'] = {'disciplines': new_disciplines} # *Replace* in session
+        results = proposal.validate_proposal(new_disciplines)  # Validate *new* disciplines
         return jsonify({'success': success, 'validation': results})
     return jsonify({'success': success})
-
-
 
 @app.route('/disciplines/<discipline_name>', methods=['DELETE'])
 def remove_discipline(discipline_name):
-    proposal = get_proposal()
-    success = proposal.remove_discipline(discipline_name)
+    proposal = DegreeProposal(session.get('degree_proposal'))
+    disciplines = proposal.disciplines
+    new_disciplines, success = proposal.remove_discipline(disciplines, discipline_name)  # Get *new* disciplines
     if success:
-        save_proposal(proposal) # save_proposal *now* includes session.modified = True
-        results = proposal.validate_proposal()
+        session['degree_proposal'] = {'disciplines': new_disciplines} # *Replace* in session
+        results = proposal.validate_proposal(new_disciplines)   # Validate *new* disciplines
         return jsonify({'success': success, 'validation': results})
     return jsonify({'success': success})
-
 
 @app.route('/courses', methods=['POST'])
 def add_course():
     try:
-        proposal = get_proposal()
+        proposal = DegreeProposal(session.get('degree_proposal'))
+        disciplines = proposal.disciplines
         data = request.json
-        success = proposal.add_course(data['discipline_name'], data['course_code'])
+        new_disciplines, success = proposal.add_course(disciplines, data['discipline_name'], data['course_code']) # New disciplines
         if success:
-            save_proposal(proposal) # save_proposal *now* includes session.modified = True
+            session['degree_proposal'] = {'disciplines': new_disciplines}  # *Replace*
             course_data = proposal.courses_df[proposal.courses_df['Course_code'] == data['course_code']].iloc[0]
-            results = proposal.validate_proposal()
+            results = proposal.validate_proposal(new_disciplines)  # Validate *new* disciplines
             return jsonify({
                 'success': success,
                 'validation': results,
@@ -411,30 +398,28 @@ def add_course():
         logging.exception("Error in /courses (POST)")
         return jsonify({'success': False, 'message': str(e)}), 500
 
-
 @app.route('/courses', methods=['DELETE'])
 def remove_course():
-    proposal = get_proposal()
+    proposal = DegreeProposal(session.get('degree_proposal'))
+    disciplines = proposal.disciplines
     data = request.json
-    success = proposal.remove_course(data['discipline_name'], data['course_code'])
+    new_disciplines, success = proposal.remove_course(disciplines, data['discipline_name'], data['course_code']) # New disciplines
     if success:
-        save_proposal(proposal) # save_proposal *now* includes session.modified = True
-        results = proposal.validate_proposal()
+        session['degree_proposal'] = {'disciplines': new_disciplines}  # *Replace*
+        results = proposal.validate_proposal(new_disciplines)  # Validate *new* disciplines
         return jsonify({'success': success, 'validation': results})
     return jsonify({'success': success})
 
-
 @app.route('/validate', methods=['GET'])
 def validate_proposal_route():
-    proposal = get_proposal()
-    results = proposal.validate_proposal()
+    proposal = DegreeProposal(session.get('degree_proposal'))
+    results = proposal.validate_proposal(proposal.disciplines) # Validate current disciplines
     return jsonify(results)
-
 
 @app.route('/search-courses', methods=['GET'])
 def search_courses():
     try:
-        proposal = get_proposal()
+        proposal = DegreeProposal(session.get('degree_proposal'))  # Still needed for courses_df
         query = request.args.get('query', '')
         results = proposal.search_courses(query)
         return jsonify(results)
