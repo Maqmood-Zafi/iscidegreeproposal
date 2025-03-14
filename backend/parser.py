@@ -8,9 +8,11 @@ import time
 app = Flask(__name__)
 CORS(app, resources={
     r"/*": {
-        "origins": "*",
-        "methods": ["GET", "POST", "DELETE"],
-        "allow_headers": ["Content-Type"]
+        "origins": ["https://iscidegreeproposal.vercel.app", "http://localhost:3000"],
+        "methods": ["GET", "POST", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+        "supports_credentials": True,
+        "expose_headers": ["Content-Type"]
     }
 })
 
