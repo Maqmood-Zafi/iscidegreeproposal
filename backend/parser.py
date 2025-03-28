@@ -8,7 +8,12 @@ import time
 app = Flask(__name__)
 CORS(app, resources={
     r"/*": {
-        "origins": ["https://iscidegreeproposal.vercel.app", "http://localhost:3000"],
+        "origins": [
+            "https://iscidegreeproposal.vercel.app", 
+            "http://127.0.0.1:5000",
+            "http://localhost:3000",      # Add this
+            "http://206.12.164.2:3000"    # Add this for network access
+        ],
         "methods": ["GET", "POST", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
         "supports_credentials": True,
@@ -68,6 +73,8 @@ class DegreeProposal:
             self.courses_df['Course_code'] = self.courses_df['Course_code'].astype(str)
             self.courses_df['Title'] = self.courses_df['Title'].astype(str)
             
+            # Set default stream to regular
+            self.stream = "regular"
             self.reset_proposal()
         except Exception as e:
             print(f"Error initializing DegreeProposal: {str(e)}")
@@ -76,7 +83,15 @@ class DegreeProposal:
     def reset_proposal(self):
         # Reset to initial state with only ISCI discipline
         self.disciplines = {"ISCI": []}
-        
+        # Don't reset the stream when resetting proposal
+    
+    def set_stream(self, stream):
+        """Set the degree stream (regular or honours)"""
+        if stream in ["regular", "honours"]:
+            self.stream = stream
+            return True
+        return False
+    
     def add_discipline(self, discipline_name):
         if discipline_name != "ISCI" and discipline_name not in self.disciplines:
             self.disciplines[discipline_name] = []
@@ -84,9 +99,16 @@ class DegreeProposal:
         return False
     
     def remove_discipline(self, discipline_name):
+        print(f"Attempting to remove discipline: '{discipline_name}'")
+        print(f"Current disciplines: {list(self.disciplines.keys())}")
+        
         if discipline_name != "ISCI" and discipline_name in self.disciplines:
             del self.disciplines[discipline_name]
+            print(f"Discipline '{discipline_name}' successfully removed")
+            print(f"Disciplines after removal: {list(self.disciplines.keys())}")
             return True
+        
+        print(f"Failed to remove discipline '{discipline_name}'")
         return False
     
     def add_course(self, discipline_name, course_code):
@@ -143,6 +165,26 @@ class DegreeProposal:
         }
 
     def validate_proposal(self):
+        # Set requirements based on stream
+        if self.stream == "honours":
+            discipline_min_credits = 12
+            isci_min_credits = 13
+            total_credits_required = 42
+            science_credits_required = 49
+            max_honorary_credits = 7
+            non_isci_science_required = 27
+            total_400_level_required = 18
+            require_isci_449 = True
+        else:  # regular stream
+            discipline_min_credits = 9
+            isci_min_credits = 7
+            total_credits_required = 33
+            science_credits_required = 40
+            max_honorary_credits = 10
+            non_isci_science_required = 27
+            total_400_level_required = 12
+            require_isci_449 = False
+        
         validation_results = {
             'success': True,
             'messages': [],
@@ -150,10 +192,11 @@ class DegreeProposal:
             'science_credits': 0,
             'isci_credits': 0,
             'honorary_credits': 0,
-            'total_400_level_credits': 0,  # Changed from total_400_level
+            'total_400_level_credits': 0,
             'disciplines_400_level': {},
             'non_isci_science_credits': 0,
             'non_isci_honorary_credits': 0,
+            'stream': self.stream,  # Include stream in results
             'requirements': {
                 'discipline_count': {
                     'required': '2-3',
@@ -161,38 +204,42 @@ class DegreeProposal:
                     'met': False
                 },
                 'isci_credits': {
-                    'required': 7,
+                    'required': isci_min_credits,
                     'actual': 0,
                     'met': False
                 },
                 'total_credits': {
-                    'required': 33,
+                    'required': total_credits_required,
                     'actual': 0,
                     'met': False
                 },
                 'science_credits': {
-                    'required': 40,
+                    'required': science_credits_required,
                     'actual': 0,
                     'met': False
                 },
                 'non_isci_science_credits': {
-                    'required': 27,
+                    'required': non_isci_science_required,
                     'actual': 0,
                     'met': False
                 },
                 'honorary_credits': {
-                    'required': '≤ 9',
+                    'required': f'≤ {max_honorary_credits}',
                     'actual': 0,
                     'met': True  # Initially true as 0 is valid
                 },
                 'total_400_level': {
-                    'required': 12,
+                    'required': total_400_level_required,
                     'actual': 0,
                     'met': False
                 },
                 'disciplines_requirements': {}
             }
         }
+
+        # Check ISCI 449 requirement for honours stream
+        isci_courses = self.disciplines.get("ISCI", [])
+        has_isci_449 = "ISCI 449" in isci_courses
 
         # Validate number of disciplines (excluding ISCI)
         non_isci_disciplines = [d for d in self.disciplines.keys() if d != "ISCI"]
@@ -203,15 +250,32 @@ class DegreeProposal:
             validation_results['success'] = False
             validation_results['messages'].append("Must have 2-3 disciplines (excluding ISCI)")
 
-        # Check each discipline has at least 9 credits
+        # Check ISCI 449 requirement for honours stream
+        if require_isci_449:
+            isci_courses = self.disciplines.get("ISCI", [])
+            has_isci_449 = "ISCI 449" in isci_courses
+            if not has_isci_449:
+                validation_results['success'] = False
+                validation_results['messages'].append("Honours stream requires ISCI 449 course")
+
+        # Check each discipline has at least required credits
         for discipline, courses in self.disciplines.items():
             discipline_credits = sum(self.get_course_credits(course)['discipline_credit'] for course in courses)
             
+            # For ISCI discipline in honours stream, require both minimum credits AND ISCI 449
+            isci_requirements_met = True
+            if discipline == "ISCI":
+                isci_requirements_met = discipline_credits >= isci_min_credits
+                if require_isci_449:
+                    isci_requirements_met = isci_requirements_met and has_isci_449
+            else:
+                isci_requirements_met = discipline_credits >= discipline_min_credits
+            
             validation_results['requirements']['disciplines_requirements'][discipline] = {
                 'course_count': {
-                    'required': 7 if discipline == "ISCI" else 9,  # Different requirement for ISCI
+                    'required': isci_min_credits if discipline == "ISCI" else discipline_min_credits,
                     'actual': discipline_credits,
-                    'met': discipline_credits >= (7 if discipline == "ISCI" else 9)  # Different check for ISCI
+                    'met': isci_requirements_met
                 },
                 'has_400_level': {
                     'required': True,
@@ -220,13 +284,15 @@ class DegreeProposal:
                 }
             }
             
-            if (discipline == "ISCI" and discipline_credits < 7) or \
-               (discipline != "ISCI" and discipline_credits < 9):
+            if not isci_requirements_met:
                 validation_results['success'] = False
-                validation_results['messages'].append(
-                    f"Discipline {discipline} must have at least {7 if discipline == 'ISCI' else 9} credits"
-                )
-            
+                if discipline == "ISCI" and require_isci_449 and not has_isci_449:
+                    validation_results['messages'].append(f"Discipline ISCI requires ISCI 449 course for honours stream")
+                else:
+                    validation_results['messages'].append(
+                        f"Discipline {discipline} must have at least {isci_min_credits if discipline == 'ISCI' else discipline_min_credits} credits"
+                    )
+
             # Rest of the 400-level validation remains the same
             discipline_400_level = sum(1 for course in courses if self.is_400_level(course))
             validation_results['disciplines_400_level'][discipline] = discipline_400_level
@@ -256,8 +322,8 @@ class DegreeProposal:
             for course in courses:
                 credits = self.get_course_credits(course)
                 
-                # Add to 400-level credits if applicable
-                if self.is_400_level(course):
+                # Add to 400-level credits if applicable, but exclude ISCI courses
+                if self.is_400_level(course) and discipline != "ISCI":
                     total_400_level_credits += credits['discipline_credit']
                 
                 if discipline == "ISCI":
@@ -430,8 +496,9 @@ def add_discipline():
 def remove_discipline(discipline_name):
     # Get session_id from query parameter
     session_id = request.args.get('session')
-    session_id, proposal = get_user_proposal(session_id)
+    print(f"DELETE discipline request: '{discipline_name}', session: {session_id}")
     
+    session_id, proposal = get_user_proposal(session_id)
     success = proposal.remove_discipline(discipline_name)
     
     # Return updated validation after removing discipline
@@ -442,8 +509,10 @@ def remove_discipline(discipline_name):
             'validation': results,
             'session_id': session_id
         })
+    
     return jsonify({
         'success': success,
+        'message': f"Could not remove '{discipline_name}' (not found or protected)",
         'session_id': session_id
     })
 
@@ -556,9 +625,35 @@ def get_proposal_state():
     session_id = request.args.get('session')
     session_id, proposal = get_user_proposal(session_id)
     
-    # Return the complete proposal state
+    # Return the complete proposal state including stream
     return jsonify({
         'disciplines': proposal.disciplines,
+        'stream': proposal.stream,
+        'session_id': session_id
+    })
+
+@app.route('/set-stream', methods=['POST'])
+def set_stream():
+    # Get session_id from query parameter
+    session_id = request.args.get('session')
+    session_id, proposal = get_user_proposal(session_id)
+    
+    data = request.json
+    stream = data.get('stream', 'regular')
+    
+    success = proposal.set_stream(stream)
+    
+    if success:
+        results = proposal.validate_proposal()
+        return jsonify({
+            'success': True, 
+            'validation': results,
+            'session_id': session_id
+        })
+    
+    return jsonify({
+        'success': False,
+        'message': 'Invalid stream selection',
         'session_id': session_id
     })
 

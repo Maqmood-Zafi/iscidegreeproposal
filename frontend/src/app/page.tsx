@@ -33,6 +33,17 @@ const DegreeProposal = () => {
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [showStartupMessage, setShowStartupMessage] = useState(false);
+  const [stream, setStream] = useState('regular');
+
+  // Add this near the top of your DegreeProposal component
+  const getBaseUrl = () => {
+    // Check if running in development mode
+    if (process.env.NODE_ENV === 'development') {
+      return 'http://127.0.0.1:5000';
+    }
+    // Production URL
+    return 'https://iscidegreeproposal.onrender.com';
+  };
 
   // Update URL with session ID without page reload
   const updateUrlWithSession = useCallback((sid) => {
@@ -45,7 +56,8 @@ const DegreeProposal = () => {
 
   // Create a helper function for API calls to handle session
   const makeApiCall = async (endpoint, method, body = null) => {
-    const url = new URL(`https://iscidegreeproposal.onrender.com${endpoint}`);
+    const baseUrl = getBaseUrl();
+    const url = new URL(`${baseUrl}${endpoint}`);
 
     // Add session ID to URL if available
     if (sessionId) {
@@ -80,12 +92,19 @@ const DegreeProposal = () => {
           const data = await makeApiCall('/reset', 'POST');
           if (data.success) {
             fetchValidation();
+            // Default to regular stream for new users
+            setStream('regular');
           }
         } else {
           // Fetch the complete state for existing session
           const stateData = await makeApiCall('/proposal-state', 'GET');
           if (stateData.disciplines) {
             setDisciplines(stateData.disciplines);
+            
+            // Set stream from saved state
+            if (stateData.stream) {
+              setStream(stateData.stream);
+            }
             
             // Fetch course titles for all existing courses
             const allCourses = Object.values(stateData.disciplines).flat();
@@ -475,6 +494,27 @@ const DegreeProposal = () => {
     }
   }, [sessionId]);
 
+  // Add this function to update the stream
+  const updateStream = async (newStream) => {
+    try {
+      const data = await makeApiCall('/set-stream', 'POST', {
+        stream: newStream
+      });
+      
+      if (data.success) {
+        setStream(newStream);
+        if (data.validation) {
+          setValidationResults(data.validation);
+        }
+      } else {
+        setError(data.message || 'Failed to update stream');
+      }
+    } catch (error) {
+      setError('Failed to update stream');
+      console.error('Error updating stream:', error);
+    }
+  };
+
   return (
     <div className="flex flex-col lg:flex-row gap-6 p-6 max-w-7xl mx-auto">
       {/* Startup notification */}
@@ -520,6 +560,30 @@ const DegreeProposal = () => {
               Add disciplines and courses to build your degree proposal
             </CardDescription>
           </CardHeader>
+          <div className="px-6 py-4 bg-blue-50 rounded-lg mb-4">
+            <h3 className="text-lg font-semibold mb-2 text-gray-700">Stream Selection</h3>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant={stream === 'regular' ? 'default' : 'outline'}
+                onClick={() => updateStream('regular')}
+                className="flex-1"
+              >
+                Regular Stream
+              </Button>
+              <Button
+                variant={stream === 'honours' ? 'default' : 'outline'}
+                onClick={() => updateStream('honours')}
+                className="flex-1"
+              >
+                Honours Stream
+              </Button>
+            </div>
+            <p className="mt-2 text-sm text-gray-500">
+              {stream === 'honours' ? 
+                'Honours stream requires more credits and ISCI 449 course.' : 
+                'Regular stream has standard requirements.'}
+            </p>
+          </div>
           <CardContent>
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row gap-4">
@@ -674,7 +738,12 @@ const DegreeProposal = () => {
 
                 {/* Program Requirements */}
                 <div>
-                  <h3 className="font-medium mb-2 text-gray-700">Program Requirements</h3>
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="font-medium text-gray-700">Program Requirements</h3>
+                    <Badge variant={stream === "honours" ? "secondary" : "outline"}>
+                      {stream === "honours" ? "Honours Stream" : "Regular Stream"}
+                    </Badge>
+                  </div>
                   <div className="space-y-1 bg-gray-50 p-3 rounded-md">
                     {renderRequirementStatus({
                       label: "Disciplines (excluding ISCI)",
