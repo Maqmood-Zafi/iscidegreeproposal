@@ -34,6 +34,7 @@ const DegreeProposal = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [showStartupMessage, setShowStartupMessage] = useState(false);
   const [stream, setStream] = useState('regular');
+  const [disciplineOrder, setDisciplineOrder] = useState(['ISCI']);
 
   // Add this near the top of your DegreeProposal component
   const getBaseUrl = () => {
@@ -92,14 +93,24 @@ const DegreeProposal = () => {
           const data = await makeApiCall('/reset', 'POST');
           if (data.success) {
             fetchValidation();
-            // Default to regular stream for new users
             setStream('regular');
+            setDisciplines({ ISCI: [] });
+            setDisciplineOrder(['ISCI']);  // Reset order
           }
         } else {
           // Fetch the complete state for existing session
           const stateData = await makeApiCall('/proposal-state', 'GET');
           if (stateData.disciplines) {
             setDisciplines(stateData.disciplines);
+            
+            // Set discipline order from saved state
+            if (stateData.discipline_order) {
+              setDisciplineOrder(stateData.discipline_order);
+            } else {
+              // Fallback: ensure ISCI is first
+              const keys = Object.keys(stateData.disciplines);
+              setDisciplineOrder(['ISCI', ...keys.filter(k => k !== 'ISCI')]);
+            }
             
             // Set stream from saved state
             if (stateData.stream) {
@@ -176,52 +187,57 @@ const DegreeProposal = () => {
   };
 
   const addDiscipline = async () => {
-    if (newDiscipline.trim() === '' || newDiscipline.toLowerCase() === 'isci') {
-      setError('Please enter a valid discipline name (cannot be ISCI)');
+    if (!newDiscipline.trim()) {
+      setError('Please enter a discipline name');
       return;
     }
-
+  
     try {
-      const data = await makeApiCall('/disciplines', 'POST', {
-        discipline_name: newDiscipline
+      const data = await makeApiCall('/disciplines', 'POST', { 
+        discipline_name: newDiscipline 
       });
-
+      
       if (data.success) {
-        setDisciplines({ ...disciplines, [newDiscipline]: [] });
+        setDisciplines(prev => ({ ...prev, [newDiscipline]: [] }));
+        setDisciplineOrder(prev => [...prev, newDiscipline]);  // Add to order
         setNewDiscipline('');
         setError('');
-        // Update validation results
+        
         if (data.validation) {
           setValidationResults(data.validation);
         }
+      } else {
+        setError(data.message || 'Failed to add discipline');
       }
     } catch (_) {
       setError('Failed to add discipline');
     }
   };
-
+  
   const removeDiscipline = async (disciplineName) => {
     if (disciplineName === 'ISCI') {
       setError('Cannot remove ISCI discipline');
       return;
     }
-
+  
     try {
-      const data = await makeApiCall(`/disciplines/${disciplineName}`, 'DELETE');
-
+      const data = await makeApiCall(`/disciplines/${encodeURIComponent(disciplineName)}`, 'DELETE');
+      
       if (data.success) {
         const newDisciplines = { ...disciplines };
         delete newDisciplines[disciplineName];
         setDisciplines(newDisciplines);
+        setDisciplineOrder(prev => prev.filter(d => d !== disciplineName));  // Remove from order
         setError('');
-
-        // Update validation results
+  
         if (data.validation) {
           setValidationResults(data.validation);
         }
+      } else {
+        setError(data.message || 'Unknown error');
       }
     } catch (err) {
-      setError('Failed to remove discipline');
+      setError(`Failed to remove ${disciplineName}`);
     }
   };
 
@@ -523,7 +539,7 @@ const DegreeProposal = () => {
           <div className="flex items-center">
             <div className="flex-shrink-0">
               <svg className="h-6 w-6 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
             </div>
             <div className="ml-3 flex-grow">
@@ -599,92 +615,97 @@ const DegreeProposal = () => {
                 </Button>
               </div>
 
-              {Object.entries(disciplines).map(([discipline, courses]) => (
-                <Card
-                  key={discipline}
-                  className={`p-4 border-l-4 ${getDisciplineStatusColor(discipline)} shadow-sm`}
-                >
-                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <BookOpen className="w-5 h-5 text-blue-500" />
-                      <h3 className="text-lg font-semibold">{discipline}</h3>
-                      {validationResults && validationResults.requirements.disciplines_requirements[discipline] && (
-                        <>
-                          <Badge variant={validationResults.requirements.disciplines_requirements[discipline].course_count.met ? "success" : "destructive"} className="ml-2">
-                            {validationResults.requirements.disciplines_requirements[discipline].course_count.actual}/
-                            {validationResults.requirements.disciplines_requirements[discipline].course_count.required} credits
-                          </Badge>
-
-                          {discipline !== 'ISCI' && (
-                            <Badge variant={validationResults.requirements.disciplines_requirements[discipline].has_400_level.met ? "success" : "destructive"} className="ml-2">
-                              {validationResults.disciplines_400_level[discipline] || 0} 400-level courses
+              {disciplineOrder.map((discipline) => {
+                const courses = disciplines[discipline];
+                if (!courses) return null; // Handle edge case
+                
+                return (
+                  <Card
+                    key={discipline}
+                    className={`p-4 border-l-4 ${getDisciplineStatusColor(discipline)} shadow-sm`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <BookOpen className="w-5 h-5 text-blue-500" />
+                        <h3 className="text-lg font-semibold">{discipline}</h3>
+                        {validationResults && validationResults.requirements.disciplines_requirements[discipline] && (
+                          <>
+                            <Badge variant={validationResults.requirements.disciplines_requirements[discipline].course_count.met ? "success" : "destructive"} className="ml-2">
+                              {validationResults.requirements.disciplines_requirements[discipline].course_count.actual}/
+                              {validationResults.requirements.disciplines_requirements[discipline].course_count.required} credits
                             </Badge>
-                          )}
-                        </>
+  
+                            {discipline !== 'ISCI' && (
+                              <Badge variant={validationResults.requirements.disciplines_requirements[discipline].has_400_level.met ? "success" : "destructive"} className="ml-2">
+                                {validationResults.disciplines_400_level[discipline] || 0} 400-level courses
+                              </Badge>
+                            )}
+                          </>
+                        )}
+                      </div>
+                      {discipline !== 'ISCI' && (
+                        <Button
+                          onClick={() => removeDiscipline(discipline)}
+                          variant="destructive"
+                          size="sm"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Remove
+                        </Button>
                       )}
                     </div>
-                    {discipline !== 'ISCI' && (
-                      <Button
-                        onClick={() => removeDiscipline(discipline)}
-                        variant="destructive"
-                        size="sm"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Remove
-                      </Button>
-                    )}
-                  </div>
-
-                  {/* Update the course dropdown section */}
-                  <div className="relative mb-4">
-                    <CourseDropdown
-                      discipline={discipline}
-                      onCourseSelect={(courseCode) => addCourse(discipline, courseCode)} // Now passes both parameters
-                      makeApiCall={makeApiCall} // Pass the function down
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    {courses.map((course) => {
-                      // Find course title from search results or use empty string
-                      const courseData = courseSearchResults.find(c => c.code === course) ||
-                        { code: course, name: '' };
-
-                      return (
-                        <div
-                          key={course}
-                          className={`flex justify-between items-center p-3 ${
-                            is400LevelCourse(course) ? 'bg-blue-50' : 'bg-gray-50'
-                          } rounded-md border border-gray-200 hover:bg-gray-100 transition-colors`}
-                        >
-                          <div className="flex items-center gap-2 overflow-hidden">
-                            <BookMarked
-                              className={`w-4 h-4 flex-shrink-0 ${
-                                is400LevelCourse(course) ? 'text-blue-600' : 'text-blue-500'
-                              }`}
-                            />
-                            <div className="truncate">
-                              <span className="font-medium">{course}</span>
-                              <span className="text-gray-500 ml-2">-</span>
-                              <span className="text-gray-500 ml-2">
-                                {courseData.name || courseTitles[course] || ''}
-                              </span>
-                            </div>
-                          </div>
-                          <Button
-                            onClick={() => removeCourse(discipline, course)}
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 flex-shrink-0 ml-2"
+  
+                    {/* Update the course dropdown section */}
+                    <div className="relative mb-4">
+                      <CourseDropdown
+                        discipline={discipline}
+                        onCourseSelect={(courseCode) => addCourse(discipline, courseCode)} // Now passes both parameters
+                        makeApiCall={makeApiCall} // Pass the function down
+                      />
+                    </div>
+  
+                    <div className="flex flex-col gap-2">
+                      {courses.map((course) => {
+                        // Find course title from search results or use empty string
+                        const courseData = courseSearchResults.find(c => c.code === course) ||
+                          { code: course, name: '' };
+  
+                        return (
+                          <div
+                            key={course}
+                            className={`flex justify-between items-center p-3 ${
+                              is400LevelCourse(course) ? 'bg-blue-50' : 'bg-gray-50'
+                            } rounded-md border border-gray-200 hover:bg-gray-100 transition-colors`}
                           >
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                          </Button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </Card>
-              ))}
+                            <div className="flex items-center gap-2 overflow-hidden">
+                              <BookMarked
+                                className={`w-4 h-4 flex-shrink-0 ${
+                                  is400LevelCourse(course) ? 'text-blue-600' : 'text-blue-500'
+                                }`}
+                              />
+                              <div className="truncate">
+                                <span className="font-medium">{course}</span>
+                                <span className="text-gray-500 ml-2">-</span>
+                                <span className="text-gray-500 ml-2">
+                                  {courseData.name || courseTitles[course] || ''}
+                                </span>
+                              </div>
+                            </div>
+                            <Button
+                              onClick={() => removeCourse(discipline, course)}
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 flex-shrink-0 ml-2"
+                            >
+                              <Trash2 className="w-4 h-4 text-red-500" />
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </Card>
+                );
+              })}
 
               {error && (
                 <Alert variant="destructive">
@@ -800,26 +821,33 @@ const DegreeProposal = () => {
                 <div>
                   <h3 className="font-medium mb-2 text-gray-700">Discipline Requirements</h3>
                   <div className="space-y-4">
-                    {Object.entries(validationResults.requirements.disciplines_requirements).map(([discipline, requirements]) => (
-                      <div key={discipline} className="bg-gray-50 p-3 rounded-md">
-                        <h4 className="font-medium text-sm mb-2">{discipline}</h4>
-                        <div className="space-y-1">
-                          {renderRequirementStatus({
-                            label: "Minimum Credits",
-                            required: requirements.course_count.required,
-                            actual: requirements.course_count.actual,
-                            met: requirements.course_count.met
-                          })}
-
-                          {discipline !== "ISCI" && renderRequirementStatus({
-                            label: "Has 400-level Course",
-                            required: "Yes",
-                            actual: requirements.has_400_level.actual ? "Yes" : "No",
-                            met: requirements.has_400_level.met
-                          })}
-                        </div>
-                      </div>
-                    ))}
+                    {disciplineOrder
+                      .filter(discipline => 
+                        validationResults?.requirements?.disciplines_requirements?.[discipline]
+                      )
+                      .map(discipline => {
+                        const requirements = validationResults.requirements.disciplines_requirements[discipline];
+                        return (
+                          <div key={discipline} className="bg-gray-50 p-3 rounded-md">
+                            <h4 className="font-medium text-sm mb-2">{discipline}</h4>
+                            <div className="space-y-1">
+                              {renderRequirementStatus({
+                                label: "Minimum Credits",
+                                required: requirements.course_count.required,
+                                actual: requirements.course_count.actual,
+                                met: requirements.course_count.met
+                              })}
+          
+                              {discipline !== "ISCI" && renderRequirementStatus({
+                                label: "Has 400-level Course",
+                                required: "Yes",
+                                actual: requirements.has_400_level.actual ? "Yes" : "No",
+                                met: requirements.has_400_level.met
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
                   </div>
                 </div>
               </div>

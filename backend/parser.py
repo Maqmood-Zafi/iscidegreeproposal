@@ -83,7 +83,7 @@ class DegreeProposal:
     def reset_proposal(self):
         # Reset to initial state with only ISCI discipline
         self.disciplines = {"ISCI": []}
-        # Don't reset the stream when resetting proposal
+        self.discipline_order = ["ISCI"]  # Track order explicitly
     
     def set_stream(self, stream):
         """Set the degree stream (regular or honours)"""
@@ -93,8 +93,9 @@ class DegreeProposal:
         return False
     
     def add_discipline(self, discipline_name):
-        if discipline_name != "ISCI" and discipline_name not in self.disciplines:
+        if discipline_name not in self.disciplines:
             self.disciplines[discipline_name] = []
+            self.discipline_order.append(discipline_name)  # Add to order
             return True
         return False
     
@@ -104,6 +105,7 @@ class DegreeProposal:
         
         if discipline_name != "ISCI" and discipline_name in self.disciplines:
             del self.disciplines[discipline_name]
+            self.discipline_order.remove(discipline_name)  # Remove from order
             print(f"Discipline '{discipline_name}' successfully removed")
             print(f"Disciplines after removal: {list(self.disciplines.keys())}")
             return True
@@ -625,9 +627,10 @@ def get_proposal_state():
     session_id = request.args.get('session')
     session_id, proposal = get_user_proposal(session_id)
     
-    # Return the complete proposal state including stream
+    # Return the complete proposal state including discipline order
     return jsonify({
         'disciplines': proposal.disciplines,
+        'discipline_order': proposal.discipline_order,  # Send explicit order
         'stream': proposal.stream,
         'session_id': session_id
     })
