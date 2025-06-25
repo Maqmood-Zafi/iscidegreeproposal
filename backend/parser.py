@@ -167,7 +167,7 @@ class DegreeProposal:
         }
 
     def validate_proposal(self):
-        # Stream requirements setting remains unchanged
+        # Set requirements based on stream
         if self.stream == "honours":
             discipline_min_credits = 12
             isci_min_credits = 13
@@ -186,8 +186,7 @@ class DegreeProposal:
             non_isci_science_required = 27
             total_400_level_required = 12
             require_isci_449 = False
-    
-        # Initialize validation_results dictionary (existing code)
+        
         validation_results = {
             'success': True,
             'messages': [],
@@ -199,308 +198,158 @@ class DegreeProposal:
             'disciplines_400_level': {},
             'non_isci_science_credits': 0,
             'non_isci_honorary_credits': 0,
-            'stream': self.stream,  # Include stream in results
+            'stream': self.stream,
             'requirements': {
-                'discipline_count': {
-                    'required': '2-3',
-                    'actual': 0,
-                    'met': False
-                },
-                'isci_credits': {
-                    'required': isci_min_credits,
-                    'actual': 0,
-                    'met': False
-                },
-                'total_credits': {
-                    'required': total_credits_required,
-                    'actual': 0,
-                    'met': False
-                },
-                'science_credits': {
-                    'required': science_credits_required,
-                    'actual': 0,
-                    'met': False
-                },
-                'non_isci_science_credits': {
-                    'required': non_isci_science_required,
-                    'actual': 0,
-                    'met': False
-                },
-                'honorary_credits': {
-                    'required': f'≤ {max_honorary_credits}',
-                    'actual': 0,
-                    'met': True  # Initially true as 0 is valid
-                },
-                'total_400_level': {
-                    'required': total_400_level_required,
-                    'actual': 0,
-                    'met': False
-                },
+                'discipline_count': { 'required': '2-3', 'actual': 0, 'met': False },
+                'isci_credits': { 'required': isci_min_credits, 'actual': 0, 'met': False },
+                'total_credits': { 'required': total_credits_required, 'actual': 0, 'met': False },
+                'science_credits': { 'required': science_credits_required, 'actual': 0, 'met': False },
+                'non_isci_science_credits': { 'required': non_isci_science_required, 'actual': 0, 'met': False },
+                'honorary_credits': { 'required': f'≤ {max_honorary_credits}', 'actual': 0, 'met': True },
+                'total_400_level': { 'required': total_400_level_required, 'actual': 0, 'met': False },
                 'disciplines_requirements': {}
             }
         }
 
-        # Check ISCI 449 requirement for honours stream
+        # --- Initial Validation Checks ---
         isci_courses = self.disciplines.get("ISCI", [])
         has_isci_449 = "ISCI 449" in isci_courses
 
-        # Validate number of disciplines (excluding ISCI)
         non_isci_disciplines = [d for d in self.disciplines.keys() if d != "ISCI"]
         validation_results['requirements']['discipline_count']['actual'] = len(non_isci_disciplines)
         validation_results['requirements']['discipline_count']['met'] = 2 <= len(non_isci_disciplines) <= 3
-        
         if not validation_results['requirements']['discipline_count']['met']:
             validation_results['success'] = False
             validation_results['messages'].append("Must have 2-3 disciplines (excluding ISCI)")
 
-        # Check ISCI 449 requirement for honours stream
-        if require_isci_449:
-            isci_courses = self.disciplines.get("ISCI", [])
-            has_isci_449 = "ISCI 449" in isci_courses
-            if not has_isci_449:
-                validation_results['success'] = False
-                validation_results['messages'].append("Honours stream requires ISCI 449 course")
+        if require_isci_449 and not has_isci_449:
+            validation_results['success'] = False
+            validation_results['messages'].append("Honours stream requires ISCI 449 course")
 
-        # Initialize tracking variables
+        # --- Credit Calculation Loop ---
         total_credits = 0
-        non_isci_science_credits = 0
-        total_science_credits = 0
-        honorary_courses = []  # Track honorary courses in order of addition
+        pure_non_isci_science_credits = 0
+        isci_science_credits = 0
+        honorary_courses = []
         total_400_level_credits = 0
 
-        # First loop: collect all course information
-        for discipline, courses in self.disciplines.items():
-            discipline_total = 0
+        for discipline in self.discipline_order:
+            if discipline not in self.disciplines: continue
+            courses = self.disciplines[discipline]
+            
+            discipline_credits = 0
+            discipline_400_level_credits = 0
             
             for course in courses:
                 credits = self.get_course_credits(course)
+                discipline_credits += credits['discipline_credit']
                 
-                # 400-level tracking
-                if self.is_400_level(course) and discipline != "ISCI":
-                    total_400_level_credits += credits['discipline_credit']
-                
-                # ISCI discipline handling
+                if self.is_400_level(course):
+                    if discipline != "ISCI":
+                        total_400_level_credits += credits['discipline_credit']
+                    discipline_400_level_credits += credits['discipline_credit']
+
                 if discipline == "ISCI":
                     if credits['isci_course']:
-                        isci_value = credits['isci_value'] or credits['discipline_credit']
-                        validation_results['isci_credits'] += isci_value
-                        total_science_credits += isci_value
-                else:
-                    # Add to discipline total
-                    discipline_total += credits['discipline_credit']
-                    
-                    # Track regular science credits
-                    if credits['science_credit']:
-                        science_value = credits['science_value']
-                        non_isci_science_credits += science_value
-                        total_science_credits += science_value
-                    
-                    # Track honorary courses in the order they were added
+                        isci_science_credits += credits['isci_value'] or credits['discipline_credit']
+                else: # Non-ISCI disciplines
+                    # This logic prevents double-counting. A course is either honorary or pure science.
                     if credits['honorary_credit']:
                         honorary_courses.append({
                             'course': course,
                             'credit': credits['honorary_value']
                         })
-            
-            # Add non-ISCI discipline credits to total
-            if discipline != "ISCI":
-                total_credits += discipline_total
-
-        # Process honorary credits in the order they were added
-        honorary_credits_used = 0
-        honorary_credits_available = 0
-        
-        # Track which honorary courses are used (for debugging)
-        used_honorary_courses = []
-        unused_honorary_courses = []
-        
-        # Count honorary credits in the order they were added
-        for course_info in honorary_courses:
-            honorary_credits_available += course_info['credit']
-            
-            # If adding this course would exceed the limit, don't count it
-            if honorary_credits_used + course_info['credit'] <= max_honorary_credits:
-                honorary_credits_used += course_info['credit']
-                used_honorary_courses.append(course_info)
-            else:
-                unused_honorary_courses.append(course_info)
-        
-        # Update validation results
-        validation_results['honorary_credits'] = honorary_credits_available
-        validation_results['non_isci_honorary_credits'] = honorary_credits_available
-        
-        # Add honorary credits to science totals (up to the limit)
-        non_isci_science_with_honorary = non_isci_science_credits + honorary_credits_used
-        total_science_with_honorary = total_science_credits + honorary_credits_used
-        
-        # Update science credit totals in validation results
-        validation_results['non_isci_science_credits'] = non_isci_science_with_honorary
-        validation_results['requirements']['non_isci_science_credits']['actual'] = non_isci_science_with_honorary
-        validation_results['requirements']['non_isci_science_credits']['met'] = non_isci_science_with_honorary >= non_isci_science_required
-        
-        validation_results['science_credits'] = total_science_with_honorary
-        validation_results['requirements']['science_credits']['actual'] = total_science_with_honorary
-        validation_results['requirements']['science_credits']['met'] = total_science_with_honorary >= science_credits_required
-        
-        # Rest of your validation logic remains the same
-        validation_results['total_credits'] = total_credits
-        validation_results['requirements']['total_credits']['actual'] = total_credits
-        validation_results['requirements']['total_credits']['met'] = total_credits >= total_credits_required
-
-        # Update honorary credit requirements check
-        validation_results['requirements']['honorary_credits']['actual'] = honorary_credits_available
-        validation_results['requirements']['honorary_credits']['met'] = honorary_credits_available <= max_honorary_credits
-
-        # Update 400-level credit requirements check
-        validation_results['total_400_level_credits'] = total_400_level_credits
-        validation_results['requirements']['total_400_level']['actual'] = total_400_level_credits
-        validation_results['requirements']['total_400_level']['met'] = total_400_level_credits >= total_400_level_required
-
-        # Validate ISCI 449 requirement for honours stream
-        isci_courses = self.disciplines.get("ISCI", [])
-        has_isci_449 = "ISCI 449" in isci_courses
-
-        # Check each discipline has at least required credits
-        for discipline, courses in self.disciplines.items():
-            discipline_credits = sum(self.get_course_credits(course)['discipline_credit'] for course in courses)
-            
-            # For ISCI discipline in honours stream, require both minimum credits AND ISCI 449
-            isci_requirements_met = True
-            if discipline == "ISCI":
-                isci_requirements_met = discipline_credits >= isci_min_credits
-                if require_isci_449:
-                    isci_requirements_met = isci_requirements_met and has_isci_449
-            else:
-                isci_requirements_met = discipline_credits >= discipline_min_credits
-            
-            validation_results['requirements']['disciplines_requirements'][discipline] = {
-                'course_count': {
-                    'required': isci_min_credits if discipline == "ISCI" else discipline_min_credits,
-                    'actual': discipline_credits,
-                    'met': isci_requirements_met
-                },
-                'has_400_level': {
-                    'required': True,
-                    'actual': False,
-                    'met': False
-                }
-            }
-            
-            if not isci_requirements_met:
-                validation_results['success'] = False
-                if discipline == "ISCI" and require_isci_449 and not has_isci_449:
-                    validation_results['messages'].append(f"Discipline ISCI requires ISCI 449 course for honours stream")
-                else:
-                    validation_results['messages'].append(
-                        f"Discipline {discipline} must have at least {isci_min_credits if discipline == 'ISCI' else discipline_min_credits} credits"
-                    )
-
-            # Rest of the 400-level validation remains the same
-            discipline_400_level = sum(1 for course in courses if self.is_400_level(course))
-            validation_results['disciplines_400_level'][discipline] = discipline_400_level
+                    elif credits['science_credit']:
+                        pure_non_isci_science_credits += credits['science_value']
             
             if discipline != "ISCI":
-                validation_results['requirements']['disciplines_requirements'][discipline]['has_400_level']['actual'] = discipline_400_level > 0
-                validation_results['requirements']['disciplines_requirements'][discipline]['has_400_level']['met'] = discipline_400_level > 0
-                
-                if discipline_400_level < 1:
+                total_credits += discipline_credits
+
+            # --- Per-Discipline Requirement Checks ---
+            is_isci_discipline = discipline == "ISCI"
+            min_credits_for_discipline = isci_min_credits if is_isci_discipline else discipline_min_credits
+            
+            discipline_met = discipline_credits >= min_credits_for_discipline
+            if is_isci_discipline and require_isci_449:
+                discipline_met = discipline_met and has_isci_449
+
+            has_400_level_met = True
+            if not is_isci_discipline:
+                has_400_level_met = discipline_400_level_credits > 0
+                if not has_400_level_met:
                     validation_results['success'] = False
                     validation_results['messages'].append(f"Discipline {discipline} must have at least one 400-level course")
 
-        # Initialize total credits outside the loop
-        total_credits = 0
-
-        # Calculate initial credits
-        for discipline, courses in self.disciplines.items():
-            discipline_total = 0
-            for course in courses:
-                credits = self.get_course_credits(course)
-                
-                # Add to 400-level credits if applicable, but exclude ISCI courses
-                if self.is_400_level(course) and discipline != "ISCI":
-                    total_400_level_credits += credits['discipline_credit']
-                
-                if discipline == "ISCI":
-                    if credits['isci_course']:
-                        isci_value = credits['isci_value'] or credits['discipline_credit']
-                        validation_results['isci_credits'] += isci_value
-                        total_science_credits += isci_value
+            validation_results['requirements']['disciplines_requirements'][discipline] = {
+                'course_count': { 'required': min_credits_for_discipline, 'actual': discipline_credits, 'met': discipline_met },
+                'has_400_level': { 'required': True, 'actual': discipline_400_level_credits > 0, 'met': has_400_level_met }
+            }
+            if not discipline_met:
+                validation_results['success'] = False
+                if is_isci_discipline and require_isci_449 and not has_isci_449:
+                    validation_results['messages'].append(f"Discipline ISCI requires ISCI 449 for honours stream")
                 else:
-                    # Add to discipline total
-                    discipline_total += credits['discipline_credit']
-                    
-                    # Track regular science credits
-                    if credits['science_credit']:
-                        science_value = credits['science_value']
-                        non_isci_science_credits += science_value
-                        total_science_credits += science_value
-                    
-                    # Track available honorary credits
-                    if credits['honorary_credit']:
-                        honorary_value = credits['honorary_value']
-                        honorary_credits_available += honorary_value
-                        validation_results['non_isci_honorary_credits'] = honorary_credits_available
+                    validation_results['messages'].append(f"Discipline {discipline} needs at least {min_credits_for_discipline} credits")
 
-            # Add discipline total to total credits
-            if discipline != "ISCI":
-                total_credits += discipline_total
-
-        # Calculate how many honorary credits can be used (up to the stream limit)
-        honorary_credits_used = min(max_honorary_credits, honorary_credits_available)
-
-        # Update science credit totals including honorary credits
-        validation_results['non_isci_science_credits'] = non_isci_science_credits + honorary_credits_used
-        total_science = total_science_credits + honorary_credits_used
-
-        # Update validation results with stream-specific requirements
-        validation_results['requirements']['science_credits']['actual'] = total_science
-        validation_results['requirements']['science_credits']['met'] = total_science >= science_credits_required
-
-        validation_results['requirements']['non_isci_science_credits']['actual'] = validation_results['non_isci_science_credits']
-        validation_results['requirements']['non_isci_science_credits']['met'] = validation_results['non_isci_science_credits'] >= non_isci_science_required
-
-        # Update the total credits in validation results
+        # --- Final Overall Requirement Checks ---
+        honorary_credits_used = 0
+        honorary_credits_available = 0
+        for course_info in honorary_courses:
+            honorary_credits_available += course_info['credit']
+            if honorary_credits_used + course_info['credit'] <= max_honorary_credits:
+                honorary_credits_used += course_info['credit']
+        
+        total_science = isci_science_credits + pure_non_isci_science_credits + honorary_credits_used
+        non_isci_science_total = pure_non_isci_science_credits + honorary_credits_used
+        
+        # Update actual values in validation_results
         validation_results['total_credits'] = total_credits
-        validation_results['requirements']['total_credits']['actual'] = total_credits
-        validation_results['requirements']['total_credits']['met'] = total_credits >= total_credits_required
+        validation_results['science_credits'] = total_science
+        validation_results['isci_credits'] = isci_science_credits
+        validation_results['non_isci_science_credits'] = non_isci_science_total
+        validation_results['honorary_credits'] = honorary_credits_available
+        validation_results['non_isci_honorary_credits'] = honorary_credits_available
+        validation_results['total_400_level_credits'] = total_400_level_credits
 
-        # Update requirements check with stream-specific values
-        validation_results['requirements']['isci_credits']['actual'] = validation_results['isci_credits']
-        validation_results['requirements']['isci_credits']['met'] = validation_results['isci_credits'] >= isci_min_credits
-        
-        validation_results['requirements']['honorary_credits']['actual'] = validation_results['non_isci_honorary_credits']
-        validation_results['requirements']['honorary_credits']['met'] = validation_results['non_isci_honorary_credits'] <= max_honorary_credits
-        
-        validation_results['requirements']['total_400_level']['actual'] = validation_results['total_400_level_credits']
-        validation_results['requirements']['total_400_level']['met'] = validation_results['total_400_level_credits'] >= total_400_level_required
+        # Update requirement status ('met' boolean)
+        reqs = validation_results['requirements']
+        reqs['isci_credits']['actual'] = isci_science_credits
+        reqs['isci_credits']['met'] = reqs['isci_credits']['actual'] >= reqs['isci_credits']['required']
 
-        # Validate ISCI requirements with stream-specific values
-        if not validation_results['requirements']['isci_credits']['met']:
+        reqs['total_credits']['actual'] = total_credits
+        reqs['total_credits']['met'] = reqs['total_credits']['actual'] >= reqs['total_credits']['required']
+
+        reqs['science_credits']['actual'] = total_science
+        reqs['science_credits']['met'] = reqs['science_credits']['actual'] >= reqs['science_credits']['required']
+
+        reqs['non_isci_science_credits']['actual'] = non_isci_science_total
+        reqs['non_isci_science_credits']['met'] = reqs['non_isci_science_credits']['actual'] >= reqs['non_isci_science_credits']['required']
+
+        reqs['honorary_credits']['actual'] = honorary_credits_available
+        reqs['honorary_credits']['met'] = reqs['honorary_credits']['actual'] <= max_honorary_credits
+
+        reqs['total_400_level']['actual'] = total_400_level_credits
+        reqs['total_400_level']['met'] = reqs['total_400_level']['actual'] >= reqs['total_400_level']['required']
+
+        # Update overall success and messages based on new 'met' status
+        if not reqs['total_credits']['met']:
             validation_results['success'] = False
-            validation_results['messages'].append(f"Must have at least {isci_min_credits} credits of ISCI courses")
-
-        # Validate total credits (excluding ISCI) with stream-specific values
-        if not validation_results['requirements']['total_credits']['met']:
+            validation_results['messages'].append(f"Need at least {total_credits_required} total credits in non-ISCI disciplines")
+        if not reqs['science_credits']['met']:
             validation_results['success'] = False
-            validation_results['messages'].append(f"Must have at least {total_credits_required} total credits across non-ISCI disciplines")
-
-        # Validate science credits with stream_specific values
-        if not validation_results['requirements']['science_credits']['met']:
+            validation_results['messages'].append(f"Need at least {science_credits_required} total science credits")
+        if not reqs['non_isci_science_credits']['met']:
             validation_results['success'] = False
-            validation_results['messages'].append(f"Must have at least {science_credits_required} total science credits")
-
-        # Validate honorary credits with stream_specific values
-        if not validation_results['requirements']['honorary_credits']['met']:
+            validation_results['messages'].append(f"Need at least {non_isci_science_required} science credits from non-ISCI disciplines")
+        if not reqs['honorary_credits']['met']:
             validation_results['success'] = False
-            validation_results['messages'].append(f"Maximum {max_honorary_credits} honorary credits can count toward the {non_isci_science_required} science credits requirement")
-
-        # Validate 400-level requirements with stream-specific values
-        if not validation_results['requirements']['total_400_level']['met']:
+            validation_results['messages'].append(f"Cannot have more than {max_honorary_credits} honorary credits")
+        if not reqs['total_400_level']['met']:
             validation_results['success'] = False
-            validation_results['messages'].append(f"Must have at least {total_400_level_required} credits worth of 400-level courses")
+            validation_results['messages'].append(f"Need at least {total_400_level_required} credits from 400-level non-ISCI courses")
 
         return validation_results
-        
+
     def search_courses(self, query, limit=10):
         if not query or len(query) < 2:
             return []
