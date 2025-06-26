@@ -125,11 +125,46 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
 .animate-fade-in {
   animation: fadeIn 0.5s ease-in-out;
+}
+
+.animate-fade-out {
+  animation: fadeOut 1s ease-in-out forwards;
 }
 
 /* Smooth hover transitions */
 .group-hover\:opacity-100 {
   transition: opacity 0.2s ease-in-out;
+}
+
+/* Collapse/expand animation */
+.collapse-transition {
+  transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out;
+  overflow: hidden;
+}
+
+.collapse-enter {
+  max-height: 0;
+  opacity: 0;
+}
+
+.collapse-enter-active {
+  max-height: 1000px;
+  opacity: 1;
+}
+
+.collapse-exit {
+  max-height: 1000px;
+  opacity: 1;
+}
+
+.collapse-exit-active {
+  max-height: 0;
+  opacity: 0;
 }

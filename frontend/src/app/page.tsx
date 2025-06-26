@@ -568,14 +568,22 @@ const DegreeProposal = () => {
     });
   };
 
-  // Helper function to set discipline-specific errors
+  // Update the setDisciplineError function
   const setDisciplineError = (discipline, errorMessage) => {
     setDisciplineErrors(prev => ({
       ...prev,
-      [discipline]: errorMessage
+      [discipline]: { message: errorMessage, fading: false }
     }));
     
-    // Clear the error after 5 seconds
+    // Start fade out after 4 seconds (1 second before removal)
+    setTimeout(() => {
+      setDisciplineErrors(prev => ({
+        ...prev,
+        [discipline]: prev[discipline] ? { ...prev[discipline], fading: true } : undefined
+      }));
+    }, 4000);
+    
+    // Remove the error after 5 seconds total
     setTimeout(() => {
       setDisciplineErrors(prev => {
         const newErrors = { ...prev };
@@ -585,7 +593,7 @@ const DegreeProposal = () => {
     }, 5000);
   };
 
-  // Helper function to clear discipline error
+  // Update the clearDisciplineError function
   const clearDisciplineError = (discipline) => {
     setDisciplineErrors(prev => {
       const newErrors = { ...prev };
@@ -734,49 +742,26 @@ const DegreeProposal = () => {
                           )}
                         </div>
                         
-                        <div className="flex items-center gap-2">
-                          {/* Collapse/Expand Toggle */}
+                        {discipline !== 'ISCI' && (
                           <Button
-                            onClick={() => toggleDisciplineCollapsed(discipline)}
-                            variant="outline"
+                            onClick={() => removeDiscipline(discipline)}
+                            variant="destructive"
                             size="sm"
-                            className="flex items-center gap-1"
                           >
-                            {isCollapsed ? (
-                              <>
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                                Expand
-                              </>
-                            ) : (
-                              <>
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                                </svg>
-                                Collapse
-                              </>
-                            )}
+                            <Trash2 className="w-4 h-4" />
                           </Button>
-                          
-                          {discipline !== 'ISCI' && (
-                            <Button
-                              onClick={() => removeDiscipline(discipline)}
-                              variant="destructive"
-                              size="sm"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          )}
-                        </div>
+                        )}
                       </div>
                       
-                      {/* Discipline-specific error message */}
+                      {/* Discipline-specific error message with fade animation */}
                       {disciplineError && (
-                        <Alert variant="destructive" className="mt-3">
+                        <Alert 
+                          variant="destructive" 
+                          className={`mt-3 ${disciplineError.fading ? 'animate-fade-out' : 'animate-fade-in'}`}
+                        >
                           <AlertCircle className="h-4 w-4" />
                           <AlertDescription className="flex items-center justify-between">
-                            <span>{disciplineError}</span>
+                            <span>{disciplineError.message}</span>
                             <Button
                               onClick={() => clearDisciplineError(discipline)}
                               variant="ghost"
@@ -792,11 +777,17 @@ const DegreeProposal = () => {
                       )}
                     </div>
 
-                    {/* Collapsible Course Management Section */}
-                    {!isCollapsed && (
-                      <div className="p-3">
+                    {/* Course Management Section with smooth animation */}
+                    <div 
+                      className={`collapse-transition ${isCollapsed ? 'collapse-exit-active' : 'collapse-enter-active'}`}
+                      style={{
+                        maxHeight: isCollapsed ? '0px' : '1000px',
+                        opacity: isCollapsed ? 0 : 1
+                      }}
+                    >
+                      <div className="p-4">
                         {/* Course Search */}
-                        <div className="mb-3">
+                        <div className="mb-4">
                           <CourseDropdown
                             discipline={discipline}
                             onCourseSelect={(courseCode) => addCourse(discipline, courseCode)}
@@ -804,8 +795,8 @@ const DegreeProposal = () => {
                           />
                         </div>
 
-                        {/* Compact Course List */}
-                        <div className="space-y-1">
+                        {/* Reverted Course List - Back to original styling */}
+                        <div className="flex flex-col gap-2">
                           {courses.map((course) => {
                             const courseData = courseSearchResults.find(c => c.code === course) || { code: course, name: '' };
                             const is400Level = is400LevelCourse(course);
@@ -813,47 +804,64 @@ const DegreeProposal = () => {
                             return (
                               <div
                                 key={course}
-                                className={`group flex justify-between items-center p-2 rounded border transition-all duration-200 hover:shadow-sm ${
-                                  is400Level 
-                                    ? 'bg-blue-50 border-blue-200 hover:bg-blue-100' 
-                                    : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                                }`}
+                                className={`flex justify-between items-center p-3 ${
+                                  is400Level ? 'bg-blue-50' : 'bg-gray-50'
+                                } rounded-md border border-gray-200 hover:bg-gray-100 transition-colors`}
                               >
-                                <div className="flex items-center gap-2 overflow-hidden flex-1">
-                                  <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${is400Level ? 'bg-blue-500' : 'bg-gray-400'}`}></div>
-                                  <BookMarked className={`w-3.5 h-3.5 flex-shrink-0 ${is400Level ? 'text-blue-600' : 'text-gray-500'}`} />
+                                <div className="flex items-center gap-3 overflow-hidden flex-1">
+                                  <BookMarked className={`w-4 h-4 flex-shrink-0 ${is400Level ? 'text-blue-600' : 'text-gray-500'}`} />
                                   <div className="truncate">
-                                    <div className="font-medium text-gray-900 text-sm">{course}</div>
-                                    <div className="text-xs text-gray-600 truncate">
+                                    <div className="font-medium text-gray-900">{course}</div>
+                                    <div className="text-sm text-gray-600 truncate">
                                       {courseData.name || courseTitles[course] || 'Loading...'}
                                     </div>
                                   </div>
                                   {is400Level && (
-                                    <Badge variant="secondary" className="text-xs ml-auto mr-1">400</Badge>
+                                    <Badge variant="secondary" className="text-xs ml-auto mr-2">400-level</Badge>
                                   )}
                                 </div>
                                 <Button
                                   onClick={() => removeCourse(discipline, course)}
                                   variant="ghost"
-                                  size="sm"
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0 flex-shrink-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  size="icon"
+                                  className="text-gray-500 hover:text-red-500"
                                 >
-                                  <Trash2 className="w-3 h-3" />
+                                  <Trash2 className="w-4 h-4" />
                                 </Button>
                               </div>
                             );
                           })}
                           
                           {courses.length === 0 && (
-                            <div className="text-center py-4 text-gray-500">
-                              <BookOpen className="w-6 h-6 mx-auto mb-1 opacity-50" />
-                              <p className="text-sm">No courses added yet</p>
-                              <p className="text-xs">Use the search above to add courses</p>
+                            <div className="text-center py-6 text-gray-500">
+                              <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                              <p>No courses added yet</p>
+                              <p className="text-sm">Use the search above to add courses</p>
                             </div>
                           )}
                         </div>
                       </div>
-                    )}
+                    </div>
+
+                    {/* Collapse/Expand Toggle Nook at Bottom */}
+                    <div 
+                      className="flex justify-center border-t border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
+                      onClick={() => toggleDisciplineCollapsed(discipline)}
+                    >
+                      <div className="px-4 py-2 flex items-center gap-1 text-sm text-gray-600 hover:text-gray-800">
+                        <svg 
+                          className={`w-4 h-4 transition-transform duration-300 ${isCollapsed ? 'rotate-0' : 'rotate-180'}`} 
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                        </svg>
+                        <span className="font-medium">
+                          {isCollapsed ? 'Expand' : 'Collapse'}
+                        </span>
+                      </div>
+                    </div>
                   </Card>
                 );
               })}
