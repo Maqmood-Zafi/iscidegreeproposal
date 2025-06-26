@@ -818,96 +818,140 @@ const DegreeProposal = () => {
         </Card>
       </div>
 
-      {/* Updated Sidebar - Overall Progress Only */}
+      {/* Sidebar with real-time validation */}
       <div className="w-full lg:w-1/3 space-y-6">
         <Card className="sticky top-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Check className="w-5 h-5" />
-              Overall Progress
+              Requirements Status
             </CardTitle>
             <CardDescription>
-              Your degree proposal validation summary
+              Real-time validation of your degree proposal
             </CardDescription>
           </CardHeader>
           <CardContent>
             {validationResults ? (
               <div className="space-y-4">
-                {/* Overall Status */}
-                <div className={`p-4 rounded-lg text-white ${validationResults.success ? 'bg-green-500' : 'bg-amber-500'}`}>
-                  <h3 className="font-medium flex items-center gap-2 mb-2">
+                {/* Overall status */}
+                <div className={`p-3 rounded-md text-white ${validationResults.success ? 'bg-green-500' : 'bg-amber-500'}`}>
+                  <h3 className="font-medium flex items-center gap-2">
                     {validationResults.success ? (
                       <>
-                        <CheckCircle className="w-5 h-5" /> Proposal Complete!
+                        <CheckCircle className="w-5 h-5" /> Valid Proposal
                       </>
                     ) : (
                       <>
-                        <AlertCircle className="w-5 h-5" /> In Progress
+                        <AlertCircle className="w-5 h-5" /> Requirements Not Met
                       </>
                     )}
                   </h3>
-                  <div className="text-sm opacity-90">
-                    {validationResults.success 
-                      ? "Your degree proposal meets all requirements!" 
-                      : `${validationResults.messages?.length || 0} requirement(s) need attention`}
-                  </div>
-                </div>
-
-                {/* Stream Selection */}
-                <div className="flex justify-between items-center">
-                  <span className="font-medium text-gray-700">Stream:</span>
-                  <Badge variant={stream === "honours" ? "default" : "outline"} className="ml-2">
-                    {stream === "honours" ? "Honours" : "Regular"}
-                  </Badge>
-                </div>
-
-                {/* Key Metrics Grid */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-gray-50 p-3 rounded-lg text-center">
-                    <div className="text-2xl font-bold text-blue-600">
-                      {validationResults.requirements.discipline_count.actual}
-                    </div>
-                    <div className="text-xs text-gray-600">Disciplines</div>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded-lg text-center">
-                    <div className="text-2xl font-bold text-green-600">
-                      {validationResults.requirements.science_credits.actual.toFixed(0)}
-                    </div>
-                    <div className="text-xs text-gray-600">Science Credits</div>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded-lg text-center">
-                    <div className="text-2xl font-bold text-purple-600">
-                      {validationResults.requirements.total_400_level.actual}
-                    </div>
-                    <div className="text-xs text-gray-600">400-level Credits</div>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded-lg text-center">
-                    <div className="text-2xl font-bold text-orange-600">
-                      {validationResults.requirements.honorary_credits.actual.toFixed(0)}
-                    </div>
-                    <div className="text-xs text-gray-600">Honorary Credits</div>
-                  </div>
-                </div>
-
-                {/* Issues List (if any) */}
-                {!validationResults.success && validationResults.messages && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                    <h4 className="font-medium text-amber-800 mb-2">Requirements to Address:</h4>
-                    <ul className="text-sm text-amber-700 space-y-1">
+                  {!validationResults.success && validationResults.messages && (
+                    <ul className="mt-2 text-sm list-disc pl-5 space-y-1">
                       {validationResults.messages.map((message, index) => (
-                        <li key={index} className="flex items-start gap-2">
-                          <span className="text-amber-500 mt-0.5">•</span>
-                          {message}
-                        </li>
+                        <li key={index}>{message}</li>
                       ))}
                     </ul>
+                  )}
+                </div>
+
+                {/* Program Requirements */}
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="font-medium text-gray-700">Program Requirements</h3>
+                    <Badge variant={stream === "honours" ? "secondary" : "outline"}>
+                      {stream === "honours" ? "Honours Stream" : "Regular Stream"}
+                    </Badge>
                   </div>
-                )}
+                  <div className="space-y-1 bg-gray-50 p-3 rounded-md">
+                    {renderRequirementStatus({
+                      label: "Disciplines (excluding ISCI)",
+                      required: validationResults.requirements.discipline_count.required,
+                      actual: validationResults.requirements.discipline_count.actual,
+                      met: validationResults.requirements.discipline_count.met
+                    })}
+
+                    {renderRequirementStatus({
+                      label: "ISCI Credits",
+                      required: validationResults.requirements.isci_credits.required,
+                      actual: validationResults.requirements.isci_credits.actual.toFixed(1),
+                      met: validationResults.requirements.isci_credits.met
+                    })}
+
+                    {renderRequirementStatus({
+                      label: "Total Discipline Credits",
+                      required: validationResults.requirements.total_credits.required,
+                      actual: validationResults.requirements.total_credits.actual.toFixed(1),
+                      met: validationResults.requirements.total_credits.met
+                    })}
+
+                    {renderRequirementStatus({
+                      label: "Science Credits (Total)",
+                      required: validationResults.requirements.science_credits.required,
+                      actual: validationResults.requirements.science_credits.actual.toFixed(1),
+                      met: validationResults.requirements.science_credits.met
+                    })}
+
+                    {renderRequirementStatus({
+                      label: "Science Credits (Non-ISCI)",
+                      required: validationResults.requirements.non_isci_science_credits.required,
+                      actual: validationResults.requirements.non_isci_science_credits.actual.toFixed(1),
+                      met: validationResults.requirements.non_isci_science_credits.met
+                    })}
+
+                    {renderRequirementStatus({
+                      label: "Honorary Science Credits (Max)",
+                      required: validationResults.requirements.honorary_credits.required,
+                      actual: validationResults.requirements.honorary_credits.actual.toFixed(1),
+                      met: validationResults.requirements.honorary_credits.met
+                    })}
+
+                    {renderRequirementStatus({
+                      label: "400-level Courses (Total)",
+                      required: validationResults.requirements.total_400_level.required,
+                      actual: validationResults.requirements.total_400_level.actual,
+                      met: validationResults.requirements.total_400_level.met
+                    })}
+                  </div>
+                </div>
+
+                {/* Discipline Requirements */}
+                <div>
+                  <h3 className="font-medium mb-2 text-gray-700">Discipline Requirements</h3>
+                  <div className="space-y-4">
+                    {disciplineOrder
+                      .filter(discipline => 
+                        validationResults?.requirements?.disciplines_requirements?.[discipline]
+                      )
+                      .map(discipline => {
+                        const requirements = validationResults.requirements.disciplines_requirements[discipline];
+                        return (
+                          <div key={discipline} className="bg-gray-50 p-3 rounded-md">
+                            <h4 className="font-medium text-sm mb-2">{discipline}</h4>
+                            <div className="space-y-1">
+                              {renderRequirementStatus({
+                                label: "Minimum Credits",
+                                required: requirements.course_count.required,
+                                actual: requirements.course_count.actual,
+                                met: requirements.course_count.met
+                              })}
+          
+                              {discipline !== "ISCI" && renderRequirementStatus({
+                                label: "Has 400-level Course",
+                                required: "Yes",
+                                actual: requirements.has_400_level.actual ? "Yes" : "No",
+                                met: requirements.has_400_level.met
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="p-6 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
-                <p className="text-gray-500">Loading...</p>
+                <p className="text-gray-500">Loading validation data...</p>
               </div>
             )}
           </CardContent>
