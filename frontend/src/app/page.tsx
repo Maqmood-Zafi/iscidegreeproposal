@@ -626,11 +626,11 @@ const DegreeProposal = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Card className="border-l-4 border-l-blue-500">
                   <CardContent className="p-4">
-                    <h4 className="font-medium mb-2">UBC ISCI Program</h4>
+                    <h4 className="font-medium mb-2">UBC ISCI Curriculum Requirements</h4>
                     <p className="text-sm text-gray-600 mb-3">Official program requirements and information</p>
                     <Button variant="outline" size="sm" asChild>
-                      <a href="https://isci.ubc.ca/" target="_blank" rel="noopener noreferrer">
-                        Visit ISCI Website
+                      <a href="https://intsci.ubc.ca/students/curriculum-requirements" target="_blank" rel="noopener noreferrer">
+                        View Curriculum Requirements
                       </a>
                     </Button>
                   </CardContent>
@@ -638,59 +638,13 @@ const DegreeProposal = () => {
                 
                 <Card className="border-l-4 border-l-green-500">
                   <CardContent className="p-4">
-                    <h4 className="font-medium mb-2">Academic Calendar</h4>
-                    <p className="text-sm text-gray-600 mb-3">Detailed program requirements and course descriptions</p>
+                    <h4 className="font-medium mb-2">Proposal Guidelines</h4>
+                    <p className="text-sm text-gray-600 mb-3">Detailed timeline, instructions and restrictions</p>
                     <Button variant="outline" size="sm" asChild>
-                      <a href="https://calendar.ubc.ca/vancouver/index.cfm?tree=12,215,410,1635" target="_blank" rel="noopener noreferrer">
-                        View Calendar
+                      <a href="https://intsci.ubc.ca/students/curriculum-requirements" target="_blank" rel="noopener noreferrer">
+                        View Proposal Guidelines
                       </a>
                     </Button>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-
-            {/* Stream Information */}
-            <div>
-              <h3 className="text-lg font-semibold mb-3 text-gray-700">Program Streams</h3>
-              <div className="space-y-4">
-                <Card className="bg-blue-50">
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      <Badge variant="default" className="mt-1">Regular</Badge>
-                      <div>
-                        <h4 className="font-medium mb-2">Regular Stream Requirements</h4>
-                        <ul className="text-sm text-gray-600 space-y-1">
-                          <li>• 2-3 disciplines (excluding ISCI)</li>
-                          <li>• 7+ ISCI credits</li>
-                          <li>• 33+ total discipline credits</li>
-                          <li>• 40+ total science credits (max 10 honorary)</li>
-                          <li>• 27+ science credits in non-ISCI disciplines</li>
-                          <li>• 12+ credits of 400-level courses</li>
-                          <li>• At least 3 credits of 400-level in each discipline</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-purple-50">
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      <Badge variant="secondary" className="mt-1">Honours</Badge>
-                      <div>
-                        <h4 className="font-medium mb-2">Honours Stream Requirements</h4>
-                        <ul className="text-sm text-gray-600 space-y-1">
-                          <li>• 2-3 disciplines (excluding ISCI)</li>
-                          <li>• 13+ ISCI credits including ISCI 449</li>
-                          <li>• 42+ total discipline credits</li>
-                          <li>• 49+ total science credits (max 7 honorary)</li>
-                          <li>• 27+ science credits in non-ISCI disciplines</li>
-                          <li>• 18+ credits of 400-level courses</li>
-                          <li>• At least 3 credits of 400-level in each discipline</li>
-                        </ul>
-                      </div>
-                    </div>
                   </CardContent>
                 </Card>
               </div>
@@ -739,8 +693,8 @@ const DegreeProposal = () => {
                 <CardContent className="p-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <h4 className="font-medium mb-2">Academic Advising</h4>
-                      <p className="text-sm text-gray-600 mb-2">For questions about course planning and requirements</p>
+                      <h4 className="font-medium mb-2">Integrated Science Student Association</h4>
+                      <p className="text-sm text-gray-600 mb-2">Office Hours, Degree Proposal Workshops, ISCI Events</p>
                       <Button variant="outline" size="sm" asChild>
                         <a href="mailto:isci.advisor@ubc.ca">Contact Advisor</a>
                       </Button>
