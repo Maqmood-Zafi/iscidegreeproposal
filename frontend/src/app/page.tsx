@@ -915,39 +915,6 @@ const DegreeProposal = () => {
                   </div>
                 </div>
 
-                {/* Discipline Requirements */}
-                <div>
-                  <h3 className="font-medium mb-2 text-gray-700">Discipline Requirements</h3>
-                  <div className="space-y-4">
-                    {disciplineOrder
-                      .filter(discipline => 
-                        validationResults?.requirements?.disciplines_requirements?.[discipline]
-                      )
-                      .map(discipline => {
-                        const requirements = validationResults.requirements.disciplines_requirements[discipline];
-                        return (
-                          <div key={discipline} className="bg-gray-50 p-3 rounded-md">
-                            <h4 className="font-medium text-sm mb-2">{discipline}</h4>
-                            <div className="space-y-1">
-                              {renderRequirementStatus({
-                                label: "Minimum Credits",
-                                required: requirements.course_count.required,
-                                actual: requirements.course_count.actual,
-                                met: requirements.course_count.met
-                              })}
-          
-                              {discipline !== "ISCI" && renderRequirementStatus({
-                                label: "Has 400-level Course",
-                                required: "Yes",
-                                actual: requirements.has_400_level.actual ? "Yes" : "No",
-                                met: requirements.has_400_level.met
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                </div>
               </div>
             ) : (
               <div className="p-6 text-center">
