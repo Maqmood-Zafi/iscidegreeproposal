@@ -531,6 +531,22 @@ const DegreeProposal = () => {
     }
   };
 
+  // Add this state near your other useState declarations
+  const [expandedDisciplines, setExpandedDisciplines] = useState(new Set(['ISCI'])); // ISCI expanded by default
+
+  // Add these helper functions
+  const toggleDisciplineExpanded = (discipline) => {
+    setExpandedDisciplines(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(discipline)) {
+        newSet.delete(discipline);
+      } else {
+        newSet.add(discipline);
+      }
+      return newSet;
+    });
+  };
+
   return (
     <div className="flex flex-col lg:flex-row gap-6 p-6 max-w-7xl mx-auto">
       {/* Startup notification */}
@@ -619,89 +635,171 @@ const DegreeProposal = () => {
                 const courses = disciplines[discipline];
                 if (!courses) return null; // Handle edge case
                 
+                const isExpanded = expandedDisciplines.has(discipline);
+                const requirements = validationResults?.requirements?.disciplines_requirements?.[discipline];
+                
                 return (
                   <Card
                     key={discipline}
-                    className={`p-4 border-l-4 ${getDisciplineStatusColor(discipline)} shadow-sm`}
+                    className={`border-l-4 ${getDisciplineStatusColor(discipline)} shadow-sm transition-all duration-200`}
                   >
-                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-4">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <BookOpen className="w-5 h-5 text-blue-500" />
-                        <h3 className="text-lg font-semibold">{discipline}</h3>
-                        {validationResults && validationResults.requirements.disciplines_requirements[discipline] && (
-                          <>
-                            <Badge variant={validationResults.requirements.disciplines_requirements[discipline].course_count.met ? "success" : "destructive"} className="ml-2">
-                              {validationResults.requirements.disciplines_requirements[discipline].course_count.actual}/
-                              {validationResults.requirements.disciplines_requirements[discipline].course_count.required} credits
-                            </Badge>
-  
-                            {discipline !== 'ISCI' && (
-                              <Badge variant={validationResults.requirements.disciplines_requirements[discipline].has_400_level.met ? "success" : "destructive"} className="ml-2">
-                                {validationResults.disciplines_400_level[discipline] || 0} 400-level courses
+                    {/* Discipline Header */}
+                    <div className="p-4 border-b border-gray-100">
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <BookOpen className="w-5 h-5 text-blue-500" />
+                          <h3 className="text-lg font-semibold">{discipline}</h3>
+                          
+                          {/* Status Badges */}
+                          {requirements && (
+                            <div className="flex gap-2">
+                              <Badge 
+                                variant={requirements.course_count.met ? "default" : "destructive"}
+                                className="text-xs"
+                              >
+                                {requirements.course_count.actual}/{requirements.course_count.required} credits
                               </Badge>
-                            )}
-                          </>
-                        )}
+                              
+                              {discipline !== 'ISCI' && (
+                                <Badge 
+                                  variant={requirements.has_400_level.met ? "default" : "destructive"}
+                                  className="text-xs"
+                                >
+                                  {requirements.has_400_level.actual ? "✓" : "✗"} 400-level
+                                </Badge>
+                              )}
+                              
+                              {discipline === 'ISCI' && stream === 'honours' && (
+                                <Badge 
+                                  variant={disciplines[discipline]?.includes('ISCI 449') ? "default" : "destructive"}
+                                  className="text-xs"
+                                >
+                                  {disciplines[discipline]?.includes('ISCI 449') ? "✓" : "✗"} ISCI 449
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          {/* Requirements Toggle Button */}
+                          <Button
+                            onClick={() => toggleDisciplineExpanded(discipline)}
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-1"
+                          >
+                            <Check className="w-4 h-4" />
+                            Requirements
+                            <svg 
+                              className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} 
+                              fill="none" 
+                              stroke="currentColor" 
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </Button>
+                          
+                          {discipline !== 'ISCI' && (
+                            <Button
+                              onClick={() => removeDiscipline(discipline)}
+                              variant="destructive"
+                              size="sm"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                      {discipline !== 'ISCI' && (
-                        <Button
-                          onClick={() => removeDiscipline(discipline)}
-                          variant="destructive"
-                          size="sm"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Remove
-                        </Button>
+                      
+                      {/* Expandable Requirements Section */}
+                      {isExpanded && requirements && (
+                        <div className="mt-4 p-3 bg-gray-50 rounded-lg border">
+                          <h4 className="font-medium text-sm mb-2 text-gray-700">Requirements Status</h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                            <div className={`flex justify-between p-2 rounded ${requirements.course_count.met ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                              <span>Credits:</span>
+                              <span className="font-medium">{requirements.course_count.actual}/{requirements.course_count.required}</span>
+                            </div>
+                            
+                            {discipline !== 'ISCI' && (
+                              <div className={`flex justify-between p-2 rounded ${requirements.has_400_level.met ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                                <span>400-level:</span>
+                                <span className="font-medium">{requirements.has_400_level.actual ? 'Required ✓' : 'Missing ✗'}</span>
+                              </div>
+                            )}
+                            
+                            {discipline === 'ISCI' && stream === 'honours' && (
+                              <div className={`flex justify-between p-2 rounded ${disciplines[discipline]?.includes('ISCI 449') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                                <span>ISCI 449:</span>
+                                <span className="font-medium">{disciplines[discipline]?.includes('ISCI 449') ? 'Added ✓' : 'Required ✗'}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
   
-                    {/* Update the course dropdown section */}
-                    <div className="relative mb-4">
-                      <CourseDropdown
-                        discipline={discipline}
-                        onCourseSelect={(courseCode) => addCourse(discipline, courseCode)} // Now passes both parameters
-                        makeApiCall={makeApiCall} // Pass the function down
-                      />
-                    </div>
+                    {/* Course Management Section */}
+                    <div className="p-4">
+                      {/* Course Search */}
+                      <div className="mb-4">
+                        <CourseDropdown
+                          discipline={discipline}
+                          onCourseSelect={(courseCode) => addCourse(discipline, courseCode)}
+                          makeApiCall={makeApiCall}
+                        />
+                      </div>
   
-                    <div className="flex flex-col gap-2">
-                      {courses.map((course) => {
-                        // Find course title from search results or use empty string
-                        const courseData = courseSearchResults.find(c => c.code === course) ||
-                          { code: course, name: '' };
-  
-                        return (
-                          <div
-                            key={course}
-                            className={`flex justify-between items-center p-3 ${
-                              is400LevelCourse(course) ? 'bg-blue-50' : 'bg-gray-50'
-                            } rounded-md border border-gray-200 hover:bg-gray-100 transition-colors`}
-                          >
-                            <div className="flex items-center gap-2 overflow-hidden">
-                              <BookMarked
-                                className={`w-4 h-4 flex-shrink-0 ${
-                                  is400LevelCourse(course) ? 'text-blue-600' : 'text-blue-500'
-                                }`}
-                              />
-                              <div className="truncate">
-                                <span className="font-medium">{course}</span>
-                                <span className="text-gray-500 ml-2">-</span>
-                                <span className="text-gray-500 ml-2">
-                                  {courseData.name || courseTitles[course] || ''}
-                                </span>
-                              </div>
-                            </div>
-                            <Button
-                              onClick={() => removeCourse(discipline, course)}
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 flex-shrink-0 ml-2"
+                      {/* Course List */}
+                      <div className="space-y-2">
+                        {courses.map((course) => {
+                          const courseData = courseSearchResults.find(c => c.code === course) || { code: course, name: '' };
+                          const is400Level = is400LevelCourse(course);
+                          
+                          return (
+                            <div
+                              key={course}
+                              className={`group flex justify-between items-center p-3 rounded-lg border transition-all duration-200 hover:shadow-sm ${
+                                is400Level 
+                                  ? 'bg-blue-50 border-blue-200 hover:bg-blue-100' 
+                                  : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                              }`}
                             >
-                              <Trash2 className="w-4 h-4 text-red-500" />
-                            </Button>
+                              <div className="flex items-center gap-3 overflow-hidden flex-1">
+                                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${is400Level ? 'bg-blue-500' : 'bg-gray-400'}`}></div>
+                                <BookMarked className={`w-4 h-4 flex-shrink-0 ${is400Level ? 'text-blue-600' : 'text-gray-500'}`} />
+                                <div className="truncate">
+                                  <div className="font-medium text-gray-900">{course}</div>
+                                  <div className="text-sm text-gray-600 truncate">
+                                    {courseData.name || courseTitles[course] || 'Loading...'}
+                                  </div>
+                                </div>
+                                {is400Level && (
+                                  <Badge variant="secondary" className="text-xs ml-auto mr-2">400-level</Badge>
+                                )}
+                              </div>
+                              <Button
+                                onClick={() => removeCourse(discipline, course)}
+                                variant="ghost"
+                                size="sm"
+                                className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0 flex-shrink-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          );
+                        })}
+                        
+                        {courses.length === 0 && (
+                          <div className="text-center py-6 text-gray-500">
+                            <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                            <p>No courses added yet</p>
+                            <p className="text-sm">Use the search above to add courses</p>
                           </div>
-                        );
-                      })}
+                        )}
+                      </div>
                     </div>
                   </Card>
                 );
@@ -720,140 +818,96 @@ const DegreeProposal = () => {
         </Card>
       </div>
 
-      {/* Sidebar with real-time validation */}
+      {/* Updated Sidebar - Overall Progress Only */}
       <div className="w-full lg:w-1/3 space-y-6">
         <Card className="sticky top-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Check className="w-5 h-5" />
-              Requirements Status
+              Overall Progress
             </CardTitle>
             <CardDescription>
-              Real-time validation of your degree proposal
+              Your degree proposal validation summary
             </CardDescription>
           </CardHeader>
           <CardContent>
             {validationResults ? (
               <div className="space-y-4">
-                {/* Overall status */}
-                <div className={`p-3 rounded-md text-white ${validationResults.success ? 'bg-green-500' : 'bg-amber-500'}`}>
-                  <h3 className="font-medium flex items-center gap-2">
+                {/* Overall Status */}
+                <div className={`p-4 rounded-lg text-white ${validationResults.success ? 'bg-green-500' : 'bg-amber-500'}`}>
+                  <h3 className="font-medium flex items-center gap-2 mb-2">
                     {validationResults.success ? (
                       <>
-                        <CheckCircle className="w-5 h-5" /> Valid Proposal
+                        <CheckCircle className="w-5 h-5" /> Proposal Complete!
                       </>
                     ) : (
                       <>
-                        <AlertCircle className="w-5 h-5" /> Requirements Not Met
+                        <AlertCircle className="w-5 h-5" /> In Progress
                       </>
                     )}
                   </h3>
-                  {!validationResults.success && validationResults.messages && (
-                    <ul className="mt-2 text-sm list-disc pl-5 space-y-1">
+                  <div className="text-sm opacity-90">
+                    {validationResults.success 
+                      ? "Your degree proposal meets all requirements!" 
+                      : `${validationResults.messages?.length || 0} requirement(s) need attention`}
+                  </div>
+                </div>
+
+                {/* Stream Selection */}
+                <div className="flex justify-between items-center">
+                  <span className="font-medium text-gray-700">Stream:</span>
+                  <Badge variant={stream === "honours" ? "default" : "outline"} className="ml-2">
+                    {stream === "honours" ? "Honours" : "Regular"}
+                  </Badge>
+                </div>
+
+                {/* Key Metrics Grid */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-gray-50 p-3 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-blue-600">
+                      {validationResults.requirements.discipline_count.actual}
+                    </div>
+                    <div className="text-xs text-gray-600">Disciplines</div>
+                  </div>
+                  <div className="bg-gray-50 p-3 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-green-600">
+                      {validationResults.requirements.science_credits.actual.toFixed(0)}
+                    </div>
+                    <div className="text-xs text-gray-600">Science Credits</div>
+                  </div>
+                  <div className="bg-gray-50 p-3 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-purple-600">
+                      {validationResults.requirements.total_400_level.actual}
+                    </div>
+                    <div className="text-xs text-gray-600">400-level Credits</div>
+                  </div>
+                  <div className="bg-gray-50 p-3 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-orange-600">
+                      {validationResults.requirements.honorary_credits.actual.toFixed(0)}
+                    </div>
+                    <div className="text-xs text-gray-600">Honorary Credits</div>
+                  </div>
+                </div>
+
+                {/* Issues List (if any) */}
+                {!validationResults.success && validationResults.messages && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <h4 className="font-medium text-amber-800 mb-2">Requirements to Address:</h4>
+                    <ul className="text-sm text-amber-700 space-y-1">
                       {validationResults.messages.map((message, index) => (
-                        <li key={index}>{message}</li>
+                        <li key={index} className="flex items-start gap-2">
+                          <span className="text-amber-500 mt-0.5">•</span>
+                          {message}
+                        </li>
                       ))}
                     </ul>
-                  )}
-                </div>
-
-                {/* Program Requirements */}
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-medium text-gray-700">Program Requirements</h3>
-                    <Badge variant={stream === "honours" ? "secondary" : "outline"}>
-                      {stream === "honours" ? "Honours Stream" : "Regular Stream"}
-                    </Badge>
                   </div>
-                  <div className="space-y-1 bg-gray-50 p-3 rounded-md">
-                    {renderRequirementStatus({
-                      label: "Disciplines (excluding ISCI)",
-                      required: validationResults.requirements.discipline_count.required,
-                      actual: validationResults.requirements.discipline_count.actual,
-                      met: validationResults.requirements.discipline_count.met
-                    })}
-
-                    {renderRequirementStatus({
-                      label: "ISCI Credits",
-                      required: validationResults.requirements.isci_credits.required,
-                      actual: validationResults.requirements.isci_credits.actual.toFixed(1),
-                      met: validationResults.requirements.isci_credits.met
-                    })}
-
-                    {renderRequirementStatus({
-                      label: "Total Discipline Credits",
-                      required: validationResults.requirements.total_credits.required,
-                      actual: validationResults.requirements.total_credits.actual.toFixed(1),
-                      met: validationResults.requirements.total_credits.met
-                    })}
-
-                    {renderRequirementStatus({
-                      label: "Science Credits (Total)",
-                      required: validationResults.requirements.science_credits.required,
-                      actual: validationResults.requirements.science_credits.actual.toFixed(1),
-                      met: validationResults.requirements.science_credits.met
-                    })}
-
-                    {renderRequirementStatus({
-                      label: "Science Credits (Non-ISCI)",
-                      required: validationResults.requirements.non_isci_science_credits.required,
-                      actual: validationResults.requirements.non_isci_science_credits.actual.toFixed(1),
-                      met: validationResults.requirements.non_isci_science_credits.met
-                    })}
-
-                    {renderRequirementStatus({
-                      label: "Honorary Science Credits (Max)",
-                      required: validationResults.requirements.honorary_credits.required,
-                      actual: validationResults.requirements.honorary_credits.actual.toFixed(1),
-                      met: validationResults.requirements.honorary_credits.met
-                    })}
-
-                    {renderRequirementStatus({
-                      label: "400-level Courses (Total)",
-                      required: validationResults.requirements.total_400_level.required,
-                      actual: validationResults.requirements.total_400_level.actual,
-                      met: validationResults.requirements.total_400_level.met
-                    })}
-                  </div>
-                </div>
-
-                {/* Discipline Requirements */}
-                <div>
-                  <h3 className="font-medium mb-2 text-gray-700">Discipline Requirements</h3>
-                  <div className="space-y-4">
-                    {disciplineOrder
-                      .filter(discipline => 
-                        validationResults?.requirements?.disciplines_requirements?.[discipline]
-                      )
-                      .map(discipline => {
-                        const requirements = validationResults.requirements.disciplines_requirements[discipline];
-                        return (
-                          <div key={discipline} className="bg-gray-50 p-3 rounded-md">
-                            <h4 className="font-medium text-sm mb-2">{discipline}</h4>
-                            <div className="space-y-1">
-                              {renderRequirementStatus({
-                                label: "Minimum Credits",
-                                required: requirements.course_count.required,
-                                actual: requirements.course_count.actual,
-                                met: requirements.course_count.met
-                              })}
-          
-                              {discipline !== "ISCI" && renderRequirementStatus({
-                                label: "Has 400-level Course",
-                                required: "Yes",
-                                actual: requirements.has_400_level.actual ? "Yes" : "No",
-                                met: requirements.has_400_level.met
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                </div>
+                )}
               </div>
             ) : (
               <div className="p-6 text-center">
-                <p className="text-gray-500">Loading validation data...</p>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
+                <p className="text-gray-500">Loading...</p>
               </div>
             )}
           </CardContent>
