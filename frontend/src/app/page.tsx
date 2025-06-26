@@ -633,9 +633,8 @@ const DegreeProposal = () => {
 
               {disciplineOrder.map((discipline) => {
                 const courses = disciplines[discipline];
-                if (!courses) return null; // Handle edge case
+                if (!courses) return null;
                 
-                const isExpanded = expandedDisciplines.has(discipline);
                 const requirements = validationResults?.requirements?.disciplines_requirements?.[discipline];
                 
                 return (
@@ -643,7 +642,7 @@ const DegreeProposal = () => {
                     key={discipline}
                     className={`border-l-4 ${getDisciplineStatusColor(discipline)} shadow-sm transition-all duration-200`}
                   >
-                    {/* Discipline Header */}
+                    {/* Simplified Discipline Header - No expandable requirements */}
                     <div className="p-4 border-b border-gray-100">
                       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                         <div className="flex flex-wrap items-center gap-2">
@@ -681,70 +680,22 @@ const DegreeProposal = () => {
                           )}
                         </div>
                         
-                        <div className="flex items-center gap-2">
-                          {/* Requirements Toggle Button */}
+                        {discipline !== 'ISCI' && (
                           <Button
-                            onClick={() => toggleDisciplineExpanded(discipline)}
-                            variant="outline"
+                            onClick={() => removeDiscipline(discipline)}
+                            variant="destructive"
                             size="sm"
-                            className="flex items-center gap-1"
                           >
-                            <Check className="w-4 h-4" />
-                            Requirements
-                            <svg 
-                              className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} 
-                              fill="none" 
-                              stroke="currentColor" 
-                              viewBox="0 0 24 24"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
+                            <Trash2 className="w-4 h-4" />
                           </Button>
-                          
-                          {discipline !== 'ISCI' && (
-                            <Button
-                              onClick={() => removeDiscipline(discipline)}
-                              variant="destructive"
-                              size="sm"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          )}
-                        </div>
+                        )}
                       </div>
-                      
-                      {/* Expandable Requirements Section */}
-                      {isExpanded && requirements && (
-                        <div className="mt-4 p-3 bg-gray-50 rounded-lg border">
-                          <h4 className="font-medium text-sm mb-2 text-gray-700">Requirements Status</h4>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                            <div className={`flex justify-between p-2 rounded ${requirements.course_count.met ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                              <span>Credits:</span>
-                              <span className="font-medium">{requirements.course_count.actual}/{requirements.course_count.required}</span>
-                            </div>
-                            
-                            {discipline !== 'ISCI' && (
-                              <div className={`flex justify-between p-2 rounded ${requirements.has_400_level.met ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                                <span>400-level:</span>
-                                <span className="font-medium">{requirements.has_400_level.actual ? 'Required ✓' : 'Missing ✗'}</span>
-                              </div>
-                            )}
-                            
-                            {discipline === 'ISCI' && stream === 'honours' && (
-                              <div className={`flex justify-between p-2 rounded ${disciplines[discipline]?.includes('ISCI 449') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                                <span>ISCI 449:</span>
-                                <span className="font-medium">{disciplines[discipline]?.includes('ISCI 449') ? 'Added ✓' : 'Required ✗'}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
                     </div>
   
-                    {/* Course Management Section */}
-                    <div className="p-4">
+                    {/* Course Management Section - Reduced padding */}
+                    <div className="p-3">
                       {/* Course Search */}
-                      <div className="mb-4">
+                      <div className="mb-3">
                         <CourseDropdown
                           discipline={discipline}
                           onCourseSelect={(courseCode) => addCourse(discipline, courseCode)}
@@ -752,8 +703,8 @@ const DegreeProposal = () => {
                         />
                       </div>
   
-                      {/* Course List */}
-                      <div className="space-y-2">
+                      {/* Compact Course List */}
+                      <div className="space-y-1">
                         {courses.map((course) => {
                           const courseData = courseSearchResults.find(c => c.code === course) || { code: course, name: '' };
                           const is400Level = is400LevelCourse(course);
@@ -761,42 +712,42 @@ const DegreeProposal = () => {
                           return (
                             <div
                               key={course}
-                              className={`group flex justify-between items-center p-3 rounded-lg border transition-all duration-200 hover:shadow-sm ${
+                              className={`group flex justify-between items-center p-2 rounded border transition-all duration-200 hover:shadow-sm ${
                                 is400Level 
                                   ? 'bg-blue-50 border-blue-200 hover:bg-blue-100' 
                                   : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
                               }`}
                             >
-                              <div className="flex items-center gap-3 overflow-hidden flex-1">
-                                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${is400Level ? 'bg-blue-500' : 'bg-gray-400'}`}></div>
-                                <BookMarked className={`w-4 h-4 flex-shrink-0 ${is400Level ? 'text-blue-600' : 'text-gray-500'}`} />
+                              <div className="flex items-center gap-2 overflow-hidden flex-1">
+                                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${is400Level ? 'bg-blue-500' : 'bg-gray-400'}`}></div>
+                                <BookMarked className={`w-3.5 h-3.5 flex-shrink-0 ${is400Level ? 'text-blue-600' : 'text-gray-500'}`} />
                                 <div className="truncate">
-                                  <div className="font-medium text-gray-900">{course}</div>
-                                  <div className="text-sm text-gray-600 truncate">
+                                  <div className="font-medium text-gray-900 text-sm">{course}</div>
+                                  <div className="text-xs text-gray-600 truncate">
                                     {courseData.name || courseTitles[course] || 'Loading...'}
                                   </div>
                                 </div>
                                 {is400Level && (
-                                  <Badge variant="secondary" className="text-xs ml-auto mr-2">400-level</Badge>
+                                  <Badge variant="secondary" className="text-xs ml-auto mr-1">400</Badge>
                                 )}
                               </div>
                               <Button
                                 onClick={() => removeCourse(discipline, course)}
                                 variant="ghost"
                                 size="sm"
-                                className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0 flex-shrink-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0 flex-shrink-0 text-red-500 hover:text-red-700 hover:bg-red-50"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Trash2 className="w-3 h-3" />
                               </Button>
                             </div>
                           );
                         })}
                         
                         {courses.length === 0 && (
-                          <div className="text-center py-6 text-gray-500">
-                            <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                            <p>No courses added yet</p>
-                            <p className="text-sm">Use the search above to add courses</p>
+                          <div className="text-center py-4 text-gray-500">
+                            <BookOpen className="w-6 h-6 mx-auto mb-1 opacity-50" />
+                            <p className="text-sm">No courses added yet</p>
+                            <p className="text-xs">Use the search above to add courses</p>
                           </div>
                         )}
                       </div>
