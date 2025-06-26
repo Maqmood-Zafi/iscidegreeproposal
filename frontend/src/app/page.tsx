@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, XCircle, AlertCircle, BookOpen, BookMarked, Trash2, Plus, Check, LayoutDashboard } from 'lucide-react';
+import Image from 'next/image';
 
 const DegreeProposal = () => {
   // Add tab state
@@ -689,26 +690,43 @@ const DegreeProposal = () => {
             {/* Contact Information */}
             <div>
               <h3 className="text-lg font-semibold mb-3 text-gray-700">Need Help?</h3>
-              <Card className="bg-gray-50">
-                <CardContent className="p-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <h4 className="font-medium mb-2">Integrated Science Student Association</h4>
-                      <p className="text-sm text-gray-600 mb-2">Office Hours, Degree Proposal Workshops, ISCI Events</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Card className="border-l-4 border-l-purple-500">
+                  <CardContent className="p-4">
+                    <h4 className="font-medium mb-2">Integrated Science Student Association</h4>
+                    <p className="text-sm text-gray-600 mb-3">Office Hours, Degree Proposal Workshops, ISCI Events</p>
+                    <div className="flex gap-2">
                       <Button variant="outline" size="sm" asChild>
-                        <a href="mailto:isci.advisor@ubc.ca">Contact Advisor</a>
+                        <a href="https://issa.ubc.ca" target="_blank" rel="noopener noreferrer">
+                          Our Website
+                        </a>
+                      </Button>
+                      <Button variant="outline" size="sm" asChild>
+                          <Image
+                            src="/Instagram_icon.png.webp"
+                            alt="Instagram"
+                            width={16}
+                            height={16}
+                            className="w-4 h-4"
+                          />
+                          />
+                          Instagram
+                        </a>
                       </Button>
                     </div>
-                    <div>
-                      <h4 className="font-medium mb-2">Program Coordinator</h4>
-                      <p className="text-sm text-gray-600 mb-2">For general program inquiries</p>
-                      <Button variant="outline" size="sm" asChild>
-                        <a href="mailto:isci@ubc.ca">Contact Coordinator</a>
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+                
+                <Card className="border-l-4 border-l-orange-500">
+                  <CardContent className="p-4">
+                    <h4 className="font-medium mb-2">Program Coordinator</h4>
+                    <p className="text-sm text-gray-600 mb-3">For general program inquiries</p>
+                    <Button variant="outline" size="sm" asChild>
+                      <a href="mailto:isci@ubc.ca">Contact Coordinator</a>
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           </CardContent>
         </Card>
