@@ -146,25 +146,28 @@
 /* Collapse/expand animation */
 .collapse-transition {
   transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out;
-  overflow: hidden;
 }
 
 .collapse-enter {
   max-height: 0;
   opacity: 0;
+  overflow: hidden;
 }
 
 .collapse-enter-active {
   max-height: 1000px;
   opacity: 1;
+  overflow: visible; /* Allow dropdown to be visible when expanded */
 }
 
 .collapse-exit {
   max-height: 1000px;
   opacity: 1;
+  overflow: visible;
 }
 
 .collapse-exit-active {
   max-height: 0;
   opacity: 0;
+  overflow: hidden; /* Only hide overflow when collapsing */
 }

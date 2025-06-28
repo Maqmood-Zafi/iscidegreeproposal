@@ -251,6 +251,13 @@ const DegreeProposal = () => {
       return;
     }
 
+    // Check for restricted courses
+    const restrictedCourses = ['PATH 437', 'MICB 406', 'MICB 407'];
+    if (restrictedCourses.includes(courseCode.toUpperCase())) {
+      setDisciplineError(disciplineName, 'This course is not available to Integrated Science Students, see proposal guidelines');
+      return;
+    }
+
     try {
       const data = await makeApiCall('/courses', 'POST', {
         discipline_name: disciplineName,
@@ -474,7 +481,7 @@ const DegreeProposal = () => {
           />
         </div>
         {isOpen && (
-          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg">
+          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg"> {/* Increased z-index from z-10 to z-50 */}
             {loading ? (
               <div className="p-4 text-center text-gray-500">Searching...</div>
             ) : (
@@ -651,6 +658,30 @@ const DegreeProposal = () => {
               </div>
             </div>
 
+            {/* YouTube Video Section */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3 text-gray-700">Degree Planning Tool Tutorial</h3>
+              <Card className="border-l-4 border-l-red-500">
+                <CardContent className="p-4">
+                  <div className="aspect-video w-full rounded-lg overflow-hidden">
+                    <iframe
+                      width="100%"
+                      height="100%"
+                      src="https://www.youtube.com/embed/OqPKCkr54hQ"
+                      title="ISCI Program Information"
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                      className="w-full h-full"
+                    ></iframe>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-3">
+                    Learn how to use the degree proposal builder tool to create your ISCI degree proposal.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
             {/* Planning Tips */}
             <div>
               <h3 className="text-lg font-semibold mb-3 text-gray-700">Planning Tips</h3>
@@ -659,13 +690,13 @@ const DegreeProposal = () => {
                   <CardContent className="p-4">
                     <h4 className="font-medium mb-2 flex items-center gap-2">
                       <Check className="w-4 h-4 text-green-500" />
-                      Course Selection
+                      Proposal Development Tips
                     </h4>
                     <ul className="text-sm text-gray-600 space-y-1">
                       <li>• Choose disciplines that complement each other</li>
                       <li>• Check prerequisites for 400-level courses</li>
                       <li>• Consider your career goals</li>
-                      <li>• Balance theoretical and practical courses</li>
+                      <li>• Develop clear rationale for course and discipline selections</li>
                     </ul>
                   </CardContent>
                 </Card>
@@ -677,10 +708,12 @@ const DegreeProposal = () => {
                       Common Mistakes
                     </h4>
                     <ul className="text-sm text-gray-600 space-y-1">
-                      <li>• Not checking course availability</li>
+                      <li>• Degree proposal lacks sufficient science content</li>
                       <li>• Forgetting about honorary credit limits</li>
-                      <li>• Missing 400-level requirements</li>
-                      <li>• Not consulting with advisors</li>
+                      <li>• Including lower-level courses in the discipline requirement</li>
+                      <li>• Curriculum Rationale that includes portions copy and pasted from the UBC calendar or websites</li>
+                      <li>• Including more than 7 ISCI Credits in the ISCI core requirment</li>
+                      <li>• Too many restricted courses included in disciplines</li>
                     </ul>
                   </CardContent>
                 </Card>
@@ -693,36 +726,54 @@ const DegreeProposal = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Card className="border-l-4 border-l-purple-500">
                   <CardContent className="p-4">
-                    <h4 className="font-medium mb-2">Integrated Science Student Association</h4>
-                    <p className="text-sm text-gray-600 mb-3">Office Hours, Degree Proposal Workshops, ISCI Events</p>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" asChild>
-                        <a href="https://issa.ubc.ca" target="_blank" rel="noopener noreferrer">
-                          Our Website
-                        </a>
-                      </Button>
-                      <Button variant="outline" size="sm" asChild>
-                          <Image
-                            src="/Instagram_icon.png.webp"
-                            alt="Instagram"
-                            width={16}
-                            height={16}
-                            className="w-4 h-4"
-                          />
-                          />
-                          Instagram
-                        </a>
-                      </Button>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 className="text-xl font-medium mb-2">Integrated Science Student Association</h3>
+                        <p className="text-sm text-gray-600 mb-3">Office Hours, Degree Proposal Workshops, ISCI Events</p>
+                        <div className="flex gap-4">
+                          <Button variant="ghost" size="sm" asChild>
+                            <a href="https://ubc-issa.weebly.com/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+                              <img 
+                                src="/issa_logo.png" 
+                                alt="ISSA" 
+                                className="w-8 h-8 rounded-lg"
+                              />
+                              Our Website
+                            </a>
+                          </Button>
+                          <Button variant="ghost" size="sm" asChild>
+                            <a href="https://instagram.com/ubcissa" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+                              <img 
+                                src="/Instagram_icon.png.webp" 
+                                alt="Instagram" 
+                                className="w-8 h-8"
+                              />
+                              Instagram
+                            </a>
+                          </Button>
+                          <Button variant="ghost" size="sm" asChild>
+                            <a href="https://discord.gg/Tks4HCEKX8" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+                              <img 
+                                src="/discord_logo.webp" 
+                                alt="Discord" 
+                                className="w-14 h-14"
+                              />
+                              Discord
+                            </a>
+                          </Button>
+                        </div>
+                      </div>
+                      
                     </div>
                   </CardContent>
                 </Card>
                 
                 <Card className="border-l-4 border-l-orange-500">
                   <CardContent className="p-4">
-                    <h4 className="font-medium mb-2">Program Coordinator</h4>
+                    <h3 className="text-xl font-medium mb-2">Integrated Sciences Advising</h3>
                     <p className="text-sm text-gray-600 mb-3">For general program inquiries</p>
                     <Button variant="outline" size="sm" asChild>
-                      <a href="mailto:isci@ubc.ca">Contact Coordinator</a>
+                      <a href="https://intsci.ubc.ca/students/advising" target="_blank" rel="noopener noreferrer">Zoom Office Hours</a>
                     </Button>
                   </CardContent>
                 </Card>
@@ -730,6 +781,32 @@ const DegreeProposal = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Links Section */}
+        <div className="mt-6 bg-gray-100 p-4 rounded-lg">
+          <h3 className="text-lg font-semibold mb-2 text-gray-700">Feedback & Contributions</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Have suggestions, found an error, or want to contribute? Use the links below:
+          </p>
+          <div className="flex gap-4">
+            <Button variant="outline" size="sm" asChild>
+              <a href="https://github.com/your-repository-link" target="_blank" rel="noopener noreferrer">
+                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.387.6.11.82-.258.82-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.757-1.333-1.757-1.089-.744.083-.729.083-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.834 2.809 1.304 3.495.997.108-.775.418-1.305.762-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.468-2.381 1.235-3.221-.123-.303-.535-1.523.117-3.176 0 0 1.008-.322 3.301 1.23a11.52 11.52 0 0 1 3.003-.404c1.018.005 2.042.138 3.003.404 2.292-1.552 3.301-1.23 3.301-1.23.653 1.653.241 2.873.118 3.176.768.84 1.235 1.911 1.235 3.221 0 4.61-2.803 5.625-5.475 5.921.43.372.823 1.102.823 2.222v3.293c0 .322.218.694.825.576C20.565 22.092 24 17.594 24 12.297 24 5.373 18.63.297 12 .297z" />
+                </svg>
+                GitHub Repository
+              </a>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <a href="mailto:muhammadhali2003@gmail.com" target="_blank" rel="noopener noreferrer">
+                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 12.713l-11.99-7.713v13.5c0 .825.675 1.5 1.5 1.5h21c.825 0 1.5-.675 1.5-1.5v-13.5l-11.99 7.713zM12 1.5l11.99 7.713v-1.713c0-.825-.675-1.5-1.5-1.5h-21c-.825 0-1.5.675-1.5 1.5v1.713l11.99-7.713z" />
+                </svg>
+                Submit Suggestions/Bugs
+              </a>
+            </Button>
+          </div>
+        </div>
       </div>
     );
   };
@@ -836,11 +913,6 @@ const DegreeProposal = () => {
                         Honours Stream
                       </Button>
                     </div>
-                    <p className="mt-2 text-sm text-gray-500">
-                      {stream === 'honours' ? 
-                        'Honours stream requires more credits and ISCI 449 course.' : 
-                        'Regular stream has standard requirements.'}
-                    </p>
                   </div>
           <CardContent>
             <div className="space-y-4">
@@ -953,12 +1025,13 @@ const DegreeProposal = () => {
                       className={`collapse-transition ${isCollapsed ? 'collapse-exit-active' : 'collapse-enter-active'}`}
                       style={{
                         maxHeight: isCollapsed ? '0px' : '1000px',
-                        opacity: isCollapsed ? 0 : 1
+                        opacity: isCollapsed ? 0 : 1,
+                        overflow: isCollapsed ? 'hidden' : 'visible' // Only hide overflow when collapsed
                       }}
                     >
                       <div className="p-4">
                         {/* Course Search */}
-                        <div className="mb-4">
+                        <div className="mb-4 relative z-10"> {/* Add relative positioning and higher z-index */}
                           <CourseDropdown
                             discipline={discipline}
                             onCourseSelect={(courseCode) => addCourse(discipline, courseCode)}
@@ -966,7 +1039,7 @@ const DegreeProposal = () => {
                           />
                         </div>
 
-                        {/* Reverted Course List - Back to original styling */}
+                        {/* Course List */}
                         <div className="flex flex-col gap-2">
                           {courses.map((course) => {
                             const courseData = courseSearchResults.find(c => c.code === course) || { code: course, name: '' };
@@ -1093,13 +1166,6 @@ const DegreeProposal = () => {
                     </Badge>
                   </div>
                   <div className="space-y-1 bg-gray-50 p-3 rounded-md">
-                    {renderRequirementStatus({
-                      label: "Disciplines (excluding ISCI)",
-                      required: validationResults.requirements.discipline_count.required,
-                      actual: validationResults.requirements.discipline_count.actual,
-                      met: validationResults.requirements.discipline_count.met
-                    })}
-
                     {renderRequirementStatus({
                       label: "ISCI Credits",
                       required: validationResults.requirements.isci_credits.required,
