@@ -42,7 +42,7 @@ def get_user_proposal(session_id=None):
     last_activity[session_id] = time.time()
     
     # Clean up inactive sessions occasionally
-    if len(user_proposals) > 100 or (time.time() % 3600 < 10):
+    if len(user_proposals) > 300 or (time.time() % 3600 < 10):
         cleanup_inactive_sessions()
         
     return session_id, user_proposals[session_id]

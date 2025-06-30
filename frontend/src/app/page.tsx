@@ -667,7 +667,7 @@ const DegreeProposal = () => {
                     <iframe
                       width="100%"
                       height="100%"
-                      src="https://www.youtube.com/watch?v=ScMzIvxBSi4"
+                      src="https://www.youtube.com/embed/p1FktTrdiNM"
                       title="ISCI Program Information"
                       frameBorder="0"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -802,7 +802,7 @@ const DegreeProposal = () => {
                 <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 12.713l-11.99-7.713v13.5c0 .825.675 1.5 1.5 1.5h21c.825 0 1.5-.675 1.5-1.5v-13.5l-11.99 7.713zM12 1.5l11.99 7.713v-1.713c0-.825-.675-1.5-1.5-1.5h-21c-.825 0-1.5.675-1.5 1.5v1.713l11.99-7.713z" />
                 </svg>
-                Submit Suggestions/Bugs
+                Submit Suggestions/Report Bugs
               </a>
             </Button>
           </div>
