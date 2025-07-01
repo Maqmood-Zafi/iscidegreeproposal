@@ -11,8 +11,10 @@ CORS(app, resources={
         "origins": [
             "https://iscidegreeproposal.vercel.app", 
             "http://127.0.0.1:5000",
-            "http://localhost:3000",      # Add this
-            "http://206.12.164.2:3000"    # Add this for network access
+            "http://localhost:3000",      # Local development
+            "http://206.12.164.2:3000",  # Network access
+            "https://isciplanner.com",    # New domain without www
+            "https://www.isciplanner.com" # New domain with www
         ],
         "methods": ["GET", "POST", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
